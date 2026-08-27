@@ -49,6 +49,7 @@ function entryArtist(e: CacheEntry | undefined): string | undefined {
 export interface SearchResult {
   url: string;
   title: string;
+  artist?: string;
 }
 
 // --- yt-dlp (shared) ---
@@ -64,17 +65,20 @@ function ytDlpStdout(args: string[]): Promise<string> {
   });
 }
 
-/** Parses yt-dlp "%(id)s\t%(title)s" lines into results. */
+/** Parses yt-dlp "%(id)s\t%(title)s[\t%(uploader)s]" lines into results. */
 function parseEntries(stdout: string): SearchResult[] {
   return stdout
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean)
     .map((line) => {
-      const tab = line.indexOf("\t");
-      const id = tab >= 0 ? line.slice(0, tab) : line;
-      const title = tab >= 0 ? line.slice(tab + 1) : id;
-      return { url: `https://www.youtube.com/watch?v=${id}`, title };
+      const [id, title, uploader] = line.split("\t");
+      const artist = uploader && uploader !== "NA" ? uploader : undefined;
+      return {
+        url: `https://www.youtube.com/watch?v=${id}`,
+        title: title ?? id!,
+        ...(artist ? { artist } : {}),
+      };
     });
 }
 
@@ -105,10 +109,16 @@ function youtubeId(url: string): string | null {
  * Finds tracks that "sound like" the given one, via YouTube's own
  * auto-generated Mix/Radio for that video (list=RD<id>). Works only for
  * YouTube tracks — local files and radio streams return [].
+ *
+ * Results are re-ranked so tracks by the same artist as the seed (the
+ * closest thing to "sounds alike" we can tell without audio analysis) come
+ * first; YouTube's own relevance order is kept as the tiebreaker within
+ * each group.
  */
 export async function fetchSimilar(
   url: string,
   limit = 20,
+  seedArtist?: string,
 ): Promise<SearchResult[]> {
   const id = youtubeId(url);
   if (!id) return [];
@@ -118,11 +128,15 @@ export async function fetchSimilar(
     "-I",
     `1:${limit + 1}`,
     "--print",
-    "%(id)s\t%(title)s",
+    "%(id)s\t%(title)s\t%(uploader)s",
     `https://www.youtube.com/watch?v=${id}&list=RD${id}`,
   ]);
   // The mix includes the seed track itself; drop it from the results.
-  return parseEntries(out).filter((r) => !r.url.endsWith(`v=${id}`));
+  const results = parseEntries(out).filter((r) => !r.url.endsWith(`v=${id}`));
+  if (!seedArtist) return results;
+  const seed = seedArtist.trim().toLowerCase();
+  const sameArtist = (r: SearchResult) => r.artist?.trim().toLowerCase() === seed;
+  return [...results].sort((a, b) => Number(sameArtist(b)) - Number(sameArtist(a)));
 }
 
 /**

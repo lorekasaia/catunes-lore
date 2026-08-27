@@ -1010,7 +1010,7 @@ function App({
     if (!tr) return;
     setOverlay({ kind: "loading", text: t("ui.finding") });
     await ensureYtDlp(() => {});
-    const results = await fetchSimilar(tr.url, loadSettings().searchLimit ?? 20);
+    const results = await fetchSimilar(tr.url, loadSettings().searchLimit ?? 20, tr.artist);
     if (results.length === 0) return setOverlay({ kind: "none" });
     setSel(0);
     setOverlay({ kind: "searchResults", results });
