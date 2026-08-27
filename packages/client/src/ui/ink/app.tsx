@@ -23,6 +23,7 @@ import {
   searchYouTube,
   isPlaylistUrl,
   fetchPlaylist,
+  fetchSimilar,
 } from "../../playlist.ts";
 import {
   theme,
@@ -1002,6 +1003,18 @@ function App({
     setSel(0);
     setOverlay({ kind: "searchResults", results });
   };
+  // Reuses the search-results overlay: same "pick → add & play" UX, fed from
+  // YouTube's own Mix/Radio for the selected track instead of a text query.
+  const doSimilar = async () => {
+    const tr = tracks[viewIdx[listIdx] ?? -1];
+    if (!tr) return;
+    setOverlay({ kind: "loading", text: t("ui.finding") });
+    await ensureYtDlp(() => {});
+    const results = await fetchSimilar(tr.url, loadSettings().searchLimit ?? 20);
+    if (results.length === 0) return setOverlay({ kind: "none" });
+    setSel(0);
+    setOverlay({ kind: "searchResults", results });
+  };
   const openList = (name: string) => {
     setPlaylists(listPlaylists());
     setSideIdx(Math.max(0, listPlaylists().indexOf(name)));
@@ -1177,6 +1190,7 @@ function App({
     if (ch === "+" || ch === "=") return setVol(player.state.volume + 5);
     if (ch === "-") return setVol(player.state.volume - 5);
     if (ch === "/") return openOverlay({ kind: "searchInput" });
+    if (ch === "z" && focus === "tracks") return void doSimilar();
     if (ch === "a")
       return openOverlay({
         kind: "addInput",

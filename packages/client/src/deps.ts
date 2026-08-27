@@ -4,7 +4,9 @@
 // give the user the exact installation command for their system.
 
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { platform } from "node:os";
+import { dirname, join } from "node:path";
 import { t } from "./i18n.ts";
 
 export interface DepStatus {
@@ -16,6 +18,34 @@ export interface DepStatus {
 
 /** Checks whether a binary exists in the PATH and returns its version. */
 function probe(bin: string, versionArg = "--version"): DepStatus {
+  // Permite especificar rutas exactas a través de variables de entorno (ej. MPV_PATH, YT_DLP_PATH)
+  const envVar = `${bin.toUpperCase().replace("-", "_")}_PATH`;
+  const envPath = process.env[envVar];
+  if (envPath) {
+    const ver = spawnSync(envPath, [versionArg], { encoding: "utf8" });
+    if (ver.status === 0) {
+      return { name: bin, found: true, path: envPath, version: ver.stdout?.split(/\r?\n/)[0]?.trim() };
+    }
+  }
+
+  // Modo portable: una copia del binario junto al ejecutable en curso (p. ej.
+  // mpv.exe distribuido junto a un catunes.exe compilado en Windows).
+  const portable = join(
+    dirname(process.execPath),
+    process.platform === "win32" ? `${bin}.exe` : bin,
+  );
+  if (existsSync(portable)) {
+    const ver = spawnSync(portable, [versionArg], { encoding: "utf8" });
+    if (ver.status === 0) {
+      return {
+        name: bin,
+        found: true,
+        path: portable,
+        version: ver.stdout?.split(/\r?\n/)[0]?.trim(),
+      };
+    }
+  }
+
   const which = spawnSync(process.platform === "win32" ? "where" : "which", [bin], {
     encoding: "utf8",
   });
@@ -42,7 +72,7 @@ export function installHint(dep: "mpv" | "yt-dlp"): string {
     mpv: {
       darwin: "brew install mpv",
       linux: "sudo apt install mpv   (o: sudo dnf install mpv / sudo pacman -S mpv)",
-      win32: "winget install mpv   (o: choco install mpv)",
+      win32: "winget install shinchiro.mpv   (o: choco install mpv)",
     },
     "yt-dlp": {
       darwin: "brew install yt-dlp",

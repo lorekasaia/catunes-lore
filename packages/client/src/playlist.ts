@@ -12,6 +12,7 @@ import {
   appendFileSync,
   readdirSync,
   rmSync,
+  renameSync,
 } from "node:fs";
 import { basename, join } from "node:path";
 import {
@@ -90,6 +91,38 @@ export async function searchYouTube(
     "%(id)s\t%(title)s",
   ]);
   return parseEntries(out);
+}
+
+/** Extracts a YouTube video id from a watch/short URL, or null if it isn't one. */
+function youtubeId(url: string): string | null {
+  const v = url.match(/[?&]v=([^&]+)/);
+  if (v) return v[1]!;
+  const short = url.match(/youtu\.be\/([^?&]+)/);
+  return short ? short[1]! : null;
+}
+
+/**
+ * Finds tracks that "sound like" the given one, via YouTube's own
+ * auto-generated Mix/Radio for that video (list=RD<id>). Works only for
+ * YouTube tracks — local files and radio streams return [].
+ */
+export async function fetchSimilar(
+  url: string,
+  limit = 20,
+): Promise<SearchResult[]> {
+  const id = youtubeId(url);
+  if (!id) return [];
+  const out = await ytDlpStdout([
+    "--flat-playlist",
+    "--no-warnings",
+    "-I",
+    `1:${limit + 1}`,
+    "--print",
+    "%(id)s\t%(title)s",
+    `https://www.youtube.com/watch?v=${id}&list=RD${id}`,
+  ]);
+  // The mix includes the seed track itself; drop it from the results.
+  return parseEntries(out).filter((r) => !r.url.endsWith(`v=${id}`));
 }
 
 /**
@@ -287,7 +320,9 @@ function loadCache(): Record<string, CacheEntry> {
 }
 
 function saveCache(cache: Record<string, CacheEntry>): void {
-  writeFileSync(TITLES_CACHE, JSON.stringify(cache, null, 2));
+  const temp = `${TITLES_CACHE}.tmp`;
+  writeFileSync(temp, JSON.stringify(cache, null, 2));
+  renameSync(temp, TITLES_CACHE);
 }
 
 /**

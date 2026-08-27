@@ -8,6 +8,7 @@ import {
   writeFileSync,
   readFileSync,
   copyFileSync,
+  renameSync,
 } from "node:fs";
 
 export const CONFIG_DIR = join(homedir(), ".config", "catunes");
@@ -136,5 +137,7 @@ export function loadSettings(): Settings {
 export function saveSettings(patch: Settings): void {
   ensureConfig();
   const merged = { ...loadSettings(), ...patch };
-  writeFileSync(SETTINGS_FILE, JSON.stringify(merged, null, 2));
+  const temp = `${SETTINGS_FILE}.tmp`;
+  writeFileSync(temp, JSON.stringify(merged, null, 2));
+  renameSync(temp, SETTINGS_FILE);
 }

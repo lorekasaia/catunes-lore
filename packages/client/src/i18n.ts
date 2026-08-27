@@ -99,6 +99,7 @@ CONTROLS (interface):
     "ui.searchLabel": " Search YouTube ",
     "ui.searchPrompt": "Type a song or artist and press Enter:",
     "ui.searching": "Searching…",
+    "ui.finding": "🔎 Finding similar tracks…",
     "ui.noResults": "No results.",
     "ui.resultsLabel": " Results — ↵ play · Esc cancel ",
     "ui.state.play": "PLAY",
@@ -116,6 +117,7 @@ CONTROLS (interface):
   {a}s{/}        shuffle on/off
   {a}r{/}        repeat (off / all / one)
   {a}/{/}        search YouTube
+  {a}z{/}        find similar tracks (YouTube Mix)
   {a}a{/}        add a URL
   {a}d{/}        delete selected
   {a}o{/}        settings (language, results)
@@ -217,6 +219,7 @@ CONTROLES (interfaz):
     "ui.searchLabel": " Buscar en YouTube ",
     "ui.searchPrompt": "Escribe una cancion o artista y pulsa Enter:",
     "ui.searching": "Buscando…",
+    "ui.finding": "🔎 Buscando canciones parecidas…",
     "ui.noResults": "Sin resultados.",
     "ui.resultsLabel": " Resultados — ↵ reproducir · Esc cancelar ",
     "ui.state.play": "PLAY",
@@ -234,6 +237,7 @@ CONTROLES (interfaz):
   {a}s{/}        aleatorio on/off
   {a}r{/}        repetir (off / todo / una)
   {a}/{/}        buscar en YouTube
+  {a}z{/}        buscar canciones parecidas (Mix de YouTube)
   {a}a{/}        anadir una URL
   {a}d{/}        borrar seleccionada
   {a}o{/}        ajustes (idioma, resultados)

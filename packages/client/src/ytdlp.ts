@@ -57,6 +57,7 @@ function commandExists(cmd: string): boolean {
 /** Returns a usable yt-dlp path/command, or null if none is available yet. */
 export function findYtDlp(): string | null {
   if (resolved) return resolved;
+  if (process.env.YT_DLP_PATH && existsSync(process.env.YT_DLP_PATH)) return (resolved = process.env.YT_DLP_PATH);
   if (commandExists("yt-dlp")) return (resolved = "yt-dlp");
   if (existsSync(LOCAL_PATH)) return (resolved = LOCAL_PATH);
   return null;

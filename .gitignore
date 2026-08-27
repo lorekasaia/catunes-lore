@@ -7,3 +7,7 @@ dist/
 bin/
 .catunes/
 *.tgz
+# artefactos de compilación local (bun build --compile)
+/catunes.exe
+/mpv.exe
+*.bun-build
