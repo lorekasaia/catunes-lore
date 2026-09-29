@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple original double-note glyph, centered in the adaptive-icon safe zone. -->
+    <path
+        android:fillColor="#FF7FD8"
+        android:pathData="M46,26 L74,20 L74,58 A11,11 0 1,1 68,53 L68,32 L52,35.5 L52,66 A11,11 0 1,1 46,61 Z" />
+</vector>
