@@ -19,14 +19,28 @@ import { YTDLP_DIR } from "./ytdlp.ts";
 /** 10-band graphic-equalizer center frequencies (Hz). */
 export const EQ_BANDS = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
-/** Builds the mpv audio-filter value for a set of EQ gains (dB). "" = flat. */
-export function eqFilterChain(gains: number[]): string {
-  if (!gains.some((g) => Math.abs(g) > 0.01)) return "";
-  const chain = EQ_BANDS.map(
-    (f, i) =>
-      `equalizer=f=${f}:width_type=o:width=1:g=${(gains[i] ?? 0).toFixed(1)}`,
-  ).join(",");
-  return `lavfi=[${chain}]`;
+/**
+ * Builds the mpv audio-filter value for a set of EQ gains (dB), optionally
+ * with a "night mode" dynamic-range compressor tacked on — like a home
+ * theater's dialogue/night mode, it makes quiet parts louder and loud parts
+ * quieter so playback stays comfortable at low volume. "" = no filter at all.
+ */
+export function eqFilterChain(gains: number[], night = false): string {
+  const hasGains = gains.some((g) => Math.abs(g) > 0.01);
+  if (!hasGains && !night) return "";
+  const parts: string[] = [];
+  if (hasGains) {
+    parts.push(
+      ...EQ_BANDS.map(
+        (f, i) =>
+          `equalizer=f=${f}:width_type=o:width=1:g=${(gains[i] ?? 0).toFixed(1)}`,
+      ),
+    );
+  }
+  if (night) {
+    parts.push("acompressor=threshold=-18dB:ratio=4:attack=200:release=1000:makeup=6");
+  }
+  return `lavfi=[${parts.join(",")}]`;
 }
 
 export interface PlayerState {
@@ -212,10 +226,11 @@ export class Player extends EventEmitter {
 
   /**
    * Applies a 10-band graphic equalizer (gains in dB) via mpv's audio-filter
-   * chain. All-zero gains clear the filter so there's no extra processing.
+   * chain, plus an optional night-mode compressor. All-zero gains with no
+   * night mode clears the filter so there's no extra processing.
    */
-  setEqualizer(gains: number[]) {
-    this.send({ command: ["set_property", "af", eqFilterChain(gains)] });
+  setEqualizer(gains: number[], night = false) {
+    this.send({ command: ["set_property", "af", eqFilterChain(gains, night)] });
   }
 
   stop() {

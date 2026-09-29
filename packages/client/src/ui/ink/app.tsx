@@ -49,7 +49,7 @@ const SPECTRUM_COLS = BANDS;
 const SEARCH_PRESETS = [10, 20, 30, 50, 100];
 
 // 10-band equalizer presets (dB per band: 31Hz … 16kHz).
-const EQ_PRESETS: { name: string; gains: number[] }[] = [
+const EQ_PRESETS: { name: string; gains: number[]; night?: boolean }[] = [
   { name: "Flat", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
   { name: "Bass Boost", gains: [7, 6, 5, 3, 1, 0, 0, 0, 0, 0] },
   { name: "Treble", gains: [0, 0, 0, 0, 0, 1, 3, 5, 6, 7] },
@@ -58,6 +58,11 @@ const EQ_PRESETS: { name: string; gains: number[] }[] = [
   { name: "Jazz", gains: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3] },
   { name: "Classical", gains: [4, 3, 2, 0, 0, 0, -1, -1, 2, 3] },
   { name: "Loudness", gains: [6, 4, 0, 0, -2, 0, 0, 2, 5, 6] },
+  // Home-theater style modes, like the ones on an AVR/soundbar remote.
+  { name: "Movie", gains: [5, 4, 1, -1, 0, 2, 3, 2, 1, 2] },
+  { name: "News", gains: [-5, -4, -2, 2, 6, 6, 4, 1, -2, -3] },
+  { name: "Stadium", gains: [6, 5, 3, 0, -3, -3, -1, 2, 5, 6] },
+  { name: "Night", gains: [-2, -1, 0, 1, 2, 2, 1, 0, -1, -2], night: true },
 ];
 const EQ_LABELS = ["31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"];
 
@@ -739,6 +744,7 @@ function App({
   const [eq, setEq] = useState<number[]>(
     loadSettings().eqGains ?? new Array(EQ_BANDS.length).fill(0),
   );
+  const [eqNight, setEqNight] = useState<boolean>(loadSettings().eqNight ?? false);
   const [eqBand, setEqBand] = useState(0);
   const [mutedVol, setMutedVol] = useState<number | null>(null);
   const [filter, setFilter] = useState(""); // filter text for the current list
@@ -815,16 +821,17 @@ function App({
     player.setVolume(v);
     saveSettings({ volume: player.state.volume });
   };
-  const applyEq = (next: number[]) => {
+  const applyEq = (next: number[], night = eqNight) => {
     setEq(next);
-    saveSettings({ eqGains: next });
+    setEqNight(night);
+    saveSettings({ eqGains: next, eqNight: night });
   };
 
   // --- effects ---
-  // Apply the equalizer to mpv on mount and whenever a band changes.
+  // Apply the equalizer to mpv on mount and whenever a band or night mode changes.
   useEffect(() => {
-    player.setEqualizer(eq);
-  }, [eq, player]);
+    player.setEqualizer(eq, eqNight);
+  }, [eq, eqNight, player]);
 
   useEffect(() => {
     const onState = () => {
@@ -1159,11 +1166,14 @@ function App({
       }
       if (ch === "0") return applyEq(new Array(EQ_BANDS.length).fill(0));
       if (ch === "p") {
-        // Cycle to the next preset by matching the current gains.
+        // Cycle to the next preset by matching the current gains + night mode.
         const i = EQ_PRESETS.findIndex(
-          (pr) => JSON.stringify(pr.gains) === JSON.stringify(eq),
+          (pr) =>
+            JSON.stringify(pr.gains) === JSON.stringify(eq) &&
+            !!pr.night === eqNight,
         );
-        return applyEq(EQ_PRESETS[(i + 1) % EQ_PRESETS.length]!.gains);
+        const next = EQ_PRESETS[(i + 1) % EQ_PRESETS.length]!;
+        return applyEq(next.gains, !!next.night);
       }
       return;
     }
@@ -1312,8 +1322,9 @@ function App({
     const H = 9; // slider rows; middle row = 0 dB
     const g = eq[eqBand] ?? 0;
     const preset =
-      EQ_PRESETS.find((p) => JSON.stringify(p.gains) === JSON.stringify(eq))
-        ?.name ?? "Custom";
+      EQ_PRESETS.find(
+        (p) => JSON.stringify(p.gains) === JSON.stringify(eq) && !!p.night === eqNight,
+      )?.name ?? "Custom";
     const knobRow = (b: number) =>
       Math.round(((12 - (eq[b] ?? 0)) / 24) * (H - 1));
     return (
@@ -1330,7 +1341,10 @@ function App({
             {g} dB
           </Text>
           {"   ·   "}
-          <Text color={accent}>{preset}</Text>
+          <Text color={accent}>
+            {eqNight ? "🌙 " : ""}
+            {preset}
+          </Text>
         </Text>
         <Box marginTop={1}>
           {EQ_BANDS.map((_, b) => (

@@ -117,6 +117,7 @@ export interface Settings {
   theme?: string;
   vizMode?: string;
   eqGains?: number[]; // 10-band equalizer (dB per band)
+  eqNight?: boolean; // home-theater-style night mode (dynamic-range compression)
   // Resume: last track + position within the last playlist.
   lastPlaylist?: string;
   lastUrl?: string;

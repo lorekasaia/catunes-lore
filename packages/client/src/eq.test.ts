@@ -18,3 +18,18 @@ test("eqFilterChain builds an mpv lavfi chain when a band is set", () => {
 test("eqFilterChain treats tiny gains as flat", () => {
   expect(eqFilterChain([0.001, 0, 0, 0, 0, 0, 0, 0, 0, 0])).toBe("");
 });
+
+test("eqFilterChain adds a compressor for night mode even with flat gains", () => {
+  const out = eqFilterChain(new Array(EQ_BANDS.length).fill(0), true);
+  expect(out.startsWith("lavfi=[")).toBe(true);
+  expect(out).toContain("acompressor=");
+  expect(out).not.toContain("equalizer=");
+});
+
+test("eqFilterChain combines EQ gains and the night compressor", () => {
+  const gains = new Array(EQ_BANDS.length).fill(0);
+  gains[0] = 6;
+  const out = eqFilterChain(gains, true);
+  expect(out).toContain("equalizer=f=31");
+  expect(out).toContain("acompressor=");
+});
