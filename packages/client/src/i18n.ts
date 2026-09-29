@@ -102,6 +102,10 @@ CONTROLS (interface):
     "ui.finding": "🔎 Finding similar tracks…",
     "ui.noResults": "No results.",
     "ui.resultsLabel": " Results — ↵ play · Esc cancel ",
+    "ui.lyricsLabel": " Lyrics ",
+    "ui.lyricsNote":
+      "Lyrics aren't shown in catunes (copyright) — opening a search in your browser:",
+    "ui.lyricsHint": "Press any key to close",
     "ui.state.play": "PLAY",
     "ui.state.pause": "PAUSE",
     "ui.state.stop": "STOP",
@@ -118,6 +122,7 @@ CONTROLS (interface):
   {a}r{/}        repeat (off / all / one)
   {a}/{/}        search YouTube
   {a}z{/}        find similar tracks (YouTube Mix)
+  {a}y{/}        lyrics (opens a browser search)
   {a}a{/}        add a URL
   {a}d{/}        delete selected
   {a}o{/}        settings (language, results)
@@ -125,6 +130,9 @@ CONTROLS (interface):
   {a}m{/}        mute
   {a}?{/}        this help
   {a}q{/}        quit
+  {a}e{/}        equalizer (theater modes)
+  {a}f{/}        filter the current list
+  {a}v{/}        cycle visualizer mode
 
   {gray-fg}Esc to close{/}`,
     "ui.langLabel": " Language ",
@@ -222,6 +230,10 @@ CONTROLES (interfaz):
     "ui.finding": "🔎 Buscando canciones parecidas…",
     "ui.noResults": "Sin resultados.",
     "ui.resultsLabel": " Resultados — ↵ reproducir · Esc cancelar ",
+    "ui.lyricsLabel": " Letra ",
+    "ui.lyricsNote":
+      "La letra no se muestra en catunes (derechos de autor) — abriendo una búsqueda en tu navegador:",
+    "ui.lyricsHint": "Presiona cualquier tecla para cerrar",
     "ui.state.play": "PLAY",
     "ui.state.pause": "PAUSA",
     "ui.state.stop": "STOP",
@@ -238,6 +250,7 @@ CONTROLES (interfaz):
   {a}r{/}        repetir (off / todo / una)
   {a}/{/}        buscar en YouTube
   {a}z{/}        buscar canciones parecidas (Mix de YouTube)
+  {a}y{/}        letra (abre una busqueda en el navegador)
   {a}a{/}        anadir una URL
   {a}d{/}        borrar seleccionada
   {a}o{/}        ajustes (idioma, resultados)
@@ -245,6 +258,9 @@ CONTROLES (interfaz):
   {a}m{/}        silenciar
   {a}?{/}        esta ayuda
   {a}q{/}        salir
+  {a}e{/}        ecualizador (modos de teatro)
+  {a}f{/}        filtrar la lista actual
+  {a}v{/}        cambiar modo del visualizador
 
   {gray-fg}Esc para cerrar{/}`,
     "ui.langLabel": " Idioma ",

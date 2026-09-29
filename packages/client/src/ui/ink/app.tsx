@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { EventEmitter } from "node:events";
+import { spawn as spawnProcess } from "node:child_process";
 import { render, Box, Text, useApp, useInput, useStdout } from "ink";
 import type { Player } from "../../player.ts";
 import { EQ_BANDS } from "../../player.ts";
@@ -87,6 +88,30 @@ function marquee(s: string, width: number, frame: number): string {
   const full = s + "   •   ";
   const off = Math.floor(frame / 3) % full.length;
   return (full + full).slice(off, off + width);
+}
+
+/**
+ * Opens a URL in the system's default browser. We never fetch or render
+ * lyrics ourselves (copyrighted text) — this just hands off to whatever
+ * lyrics site the user's browser lands on.
+ */
+function openInBrowser(url: string): void {
+  const candidates: [string, string[]][] =
+    process.platform === "win32"
+      ? [["cmd", ["/c", "start", "", url]]]
+      : process.platform === "darwin"
+        ? [["open", [url]]]
+        : [["xdg-open", [url]], ["termux-open-url", [url]]];
+  for (const [cmd, args] of candidates) {
+    const p = spawnProcess(cmd, args, { stdio: "ignore", detached: true });
+    p.on("error", () => {});
+    p.unref();
+  }
+}
+
+function lyricsSearchUrl(title: string, artist?: string): string {
+  const q = artist ? `${artist} ${title}` : title;
+  return `https://genius.com/search?q=${encodeURIComponent(q)}`;
 }
 
 /** Strips playlist/radio params so only the single video is added. */
@@ -710,6 +735,7 @@ type Overlay =
   | { kind: "searchResults"; results: SearchResult[] }
   | { kind: "confirmTrack"; index: number }
   | { kind: "confirmPlaylist"; name: string }
+  | { kind: "lyrics"; title: string; url: string }
   | { kind: "loading"; text: string };
 
 function App({
@@ -1022,6 +1048,16 @@ function App({
     setSel(0);
     setOverlay({ kind: "searchResults", results });
   };
+  // We never render lyrics ourselves (copyrighted text) — this opens a
+  // search for the current track's lyrics in the system browser instead.
+  const openLyrics = () => {
+    if (!state.url) return;
+    const tr = tracks.find((tr) => tr.url === state.url);
+    const title = tr?.title ?? state.title ?? state.url;
+    const url = lyricsSearchUrl(title, tr?.artist);
+    openInBrowser(url);
+    setOverlay({ kind: "lyrics", title, url });
+  };
   const openList = (name: string) => {
     setPlaylists(listPlaylists());
     setSideIdx(Math.max(0, listPlaylists().indexOf(name)));
@@ -1152,6 +1188,7 @@ function App({
     }
 
     if (overlay.kind === "help") return closeOverlay();
+    if (overlay.kind === "lyrics") return closeOverlay();
 
     if (overlay.kind === "eq") {
       if (key.escape || ch === "e") return closeOverlay();
@@ -1201,6 +1238,7 @@ function App({
     if (ch === "-") return setVol(player.state.volume - 5);
     if (ch === "/") return openOverlay({ kind: "searchInput" });
     if (ch === "z" && focus === "tracks") return void doSimilar();
+    if (ch === "y") return openLyrics();
     if (ch === "a")
       return openOverlay({
         kind: "addInput",
@@ -1599,6 +1637,22 @@ function renderOverlay(
         <Text color={accent}>
           {CAT_WALK[frame % CAT_WALK.length]!}  {overlay.text}
         </Text>
+      </Modal>
+    );
+  }
+  if (overlay.kind === "lyrics") {
+    return (
+      <Modal title={t("ui.lyricsLabel").trim()} cols={cols} rows={rows} width={wide}>
+        <Text color={accent}>{overlay.title}</Text>
+        <Box marginTop={1}>
+          <Text dimColor>{t("ui.lyricsNote")}</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text color={accent}>{overlay.url}</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>{t("ui.lyricsHint")}</Text>
+        </Box>
       </Modal>
     );
   }
