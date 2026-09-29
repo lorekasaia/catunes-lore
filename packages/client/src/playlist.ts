@@ -16,7 +16,6 @@ import {
 } from "node:fs";
 import { basename, join } from "node:path";
 import {
-  CONFIG_DIR,
   PLAYLISTS_DIR,
   DEFAULT_PLAYLIST_NAME,
   TITLES_CACHE,
@@ -25,15 +24,6 @@ import {
   saveSettings,
 } from "./config.ts";
 import { ytDlpCommand } from "./ytdlp.ts";
-
-// TEMP DEBUG — remove once the Termux "search returns nothing" issue is diagnosed.
-function dbgYtdlp(msg: string): void {
-  try {
-    appendFileSync(join(CONFIG_DIR, "debug.log"), `[${new Date().toISOString()}] ${msg}\n`);
-  } catch {
-    // ignore
-  }
-}
 
 export interface Track {
   url: string;
@@ -67,22 +57,11 @@ export interface SearchResult {
 /** Runs yt-dlp with the given args and resolves its stdout ("" on error). */
 function ytDlpStdout(args: string[]): Promise<string> {
   return new Promise((resolve) => {
-    const cmd = ytDlpCommand();
-    const proc = spawn(cmd, args);
+    const proc = spawn(ytDlpCommand(), args);
     let out = "";
-    let err = "";
     proc.stdout.on("data", (d) => (out += d.toString()));
-    proc.stderr?.on("data", (d) => (err += d.toString()));
-    proc.on("error", (e) => {
-      dbgYtdlp(`SPAWN ERROR cmd=${cmd} args=${JSON.stringify(args)} : ${e.message}`);
-      resolve("");
-    });
-    proc.on("close", (code) => {
-      dbgYtdlp(
-        `cmd=${cmd} args=${JSON.stringify(args)} code=${code} stdoutLen=${out.length} stderr=${err.slice(0, 800)}`,
-      );
-      resolve(out);
-    });
+    proc.on("error", () => resolve(""));
+    proc.on("close", () => resolve(out));
   });
 }
 

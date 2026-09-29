@@ -46,15 +46,13 @@ function probe(bin: string, versionArg = "--version"): DepStatus {
     }
   }
 
-  const which = spawnSync(process.platform === "win32" ? "where" : "which", [bin], {
-    encoding: "utf8",
-  });
-  if (which.status !== 0) return { name: bin, found: false };
-
-  const path = which.stdout.split(/\r?\n/)[0]?.trim();
+  // Try running it directly rather than asking `which`/`where` first — some
+  // minimal environments (e.g. Termux) don't ship that utility, which would
+  // otherwise make a perfectly usable binary look "not found".
   const ver = spawnSync(bin, [versionArg], { encoding: "utf8" });
+  if (ver.error) return { name: bin, found: false };
   const version = ver.stdout?.split(/\r?\n/)[0]?.trim();
-  return { name: bin, found: true, path, version };
+  return { name: bin, found: true, path: bin, version };
 }
 
 export function checkMpv(): DepStatus {
