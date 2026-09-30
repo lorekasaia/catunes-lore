@@ -385,22 +385,29 @@ function PixelCat({
       </Text>
     );
 
-  // Progress aura: perimeter cells lit clockwise from the top-left corner.
+  // Progress aura: perimeter cells lit clockwise from the top-left corner,
+  // in a low→mid→high sweep (the theme's spectrum colors) so it glows
+  // instead of just lighting up a single flat color.
   const total = 2 * CAT_W + 2 * CAT_H + 4;
   const filled = Math.round(Math.max(0, Math.min(1, ratio)) * total);
   const lit = (seq: number) => seq < filled;
+  const [auraLow, auraMid, auraHigh] = theme().spectrum;
+  const auraColor = (seq: number) => {
+    const third = total / 3;
+    return seq < third ? auraLow! : seq < 2 * third ? auraMid! : auraHigh!;
+  };
   const hcell = (seq: number, key: number) => (
-    <Text key={key} color={accent} dimColor={!lit(seq)}>
+    <Text key={key} color={lit(seq) ? auraColor(seq) : accent} dimColor={!lit(seq)}>
       {lit(seq) ? "━" : "─"}
     </Text>
   );
   const vcell = (seq: number) => (
-    <Text color={accent} dimColor={!lit(seq)}>
+    <Text color={lit(seq) ? auraColor(seq) : accent} dimColor={!lit(seq)}>
       {lit(seq) ? "┃" : "│"}
     </Text>
   );
   const ccell = (seq: number, ch: string) => (
-    <Text color={accent} dimColor={!lit(seq)}>
+    <Text color={lit(seq) ? auraColor(seq) : accent} dimColor={!lit(seq)}>
       {ch}
     </Text>
   );
@@ -1385,29 +1392,38 @@ function App({
           </Text>
         </Text>
         <Box marginTop={1}>
-          {EQ_BANDS.map((_, b) => (
-            <Box key={b} flexDirection="column" alignItems="center" marginRight={1}>
-              {Array.from({ length: H }, (_, r) => {
-                const knob = r === knobRow(b);
-                const zero = r === Math.floor(H / 2);
-                return (
-                  <Text
-                    key={r}
-                    color={b === eqBand ? accent : undefined}
-                    dimColor={b !== eqBand && !knob}
-                  >
-                    {knob ? "███" : zero ? " ─ " : "   "}
-                  </Text>
-                );
-              })}
-              <Text
-                color={b === eqBand ? accent : undefined}
-                dimColor={b !== eqBand}
-              >
-                {(EQ_LABELS[b] ?? "").padStart(3)}
-              </Text>
-            </Box>
-          ))}
+          {EQ_BANDS.map((_, b) => {
+            const [low, mid, high] = theme().spectrum;
+            const trackColor =
+              b < EQ_BANDS.length / 3 ? low! : b < (2 * EQ_BANDS.length) / 3 ? mid! : high!;
+            const zeroRow = Math.floor(H / 2);
+            const kRow = knobRow(b);
+            const top = Math.min(zeroRow, kRow);
+            const bottom = Math.max(zeroRow, kRow);
+            const active = b === eqBand;
+            return (
+              <Box key={b} flexDirection="column" alignItems="center" marginRight={1}>
+                {Array.from({ length: H }, (_, r) => {
+                  const knob = r === kRow;
+                  const zero = r === zeroRow;
+                  const filled = r >= top && r <= bottom && r !== zeroRow;
+                  const ch = knob ? "─●─" : filled ? " █ " : zero ? " ─ " : "   ";
+                  return (
+                    <Text
+                      key={r}
+                      color={active ? accent : trackColor}
+                      dimColor={!active && !knob && !filled}
+                    >
+                      {ch}
+                    </Text>
+                  );
+                })}
+                <Text color={active ? accent : trackColor} dimColor={!active}>
+                  {(EQ_LABELS[b] ?? "").padStart(3)}
+                </Text>
+              </Box>
+            );
+          })}
         </Box>
         <Box marginTop={1}>
           <Text dimColor>←→ band · ↑↓ ±dB · 0 reset · p preset · esc close</Text>
