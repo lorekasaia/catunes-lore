@@ -1177,7 +1177,7 @@ function App({
     }
 
     const listOverlays: Record<string, number> = {
-      settings: 4,
+      settings: 5,
       theme: listThemes().length,
       lang: SUPPORTED_LOCALES.length,
       playlists: playlists.length,
@@ -1308,6 +1308,7 @@ function App({
         { kind: "searchLimit" },
         { kind: "playlists" },
         { kind: "theme" },
+        { kind: "help" },
       ];
       return openOverlay(next[sel] ?? { kind: "none" });
     }
@@ -1557,7 +1558,13 @@ function renderOverlay(
         <PickList
           selected={sel}
           maxVisible={maxVisible}
-          options={[t("ui.optLanguage"), t("ui.optSearch"), t("ui.optPlaylist"), t("ui.optTheme")]}
+          options={[
+            t("ui.optLanguage"),
+            t("ui.optSearch"),
+            t("ui.optPlaylist"),
+            t("ui.optTheme"),
+            t("ui.optShortcuts"),
+          ]}
         />
       </Modal>
     );
