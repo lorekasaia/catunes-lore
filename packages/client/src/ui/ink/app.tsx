@@ -1532,7 +1532,8 @@ function App({
       <Box paddingX={1}>
         <Text color={accent} dimColor>
           ↑↓ · ↵ play · space · n/p · s/r · v viz ({mode}) · e eq · / search ·
-          f filter · a add · d del · o settings · ? help · q quit
+          z similar · y lyrics · f filter · a add · d del · o settings · ? help ·
+          q quit
         </Text>
       </Box>
     </Box>
@@ -1685,7 +1686,8 @@ function renderOverlay(
         <Text>
           ↑↓ navigate · ↵ play · space pause · ←→ seek{"\n"}
           n/p next/prev · s shuffle · r repeat · v visualizer{"\n"}
-          e equalizer · f filter · / search · a add · d delete{"\n"}
+          e equalizer · f filter · / search · z similar tracks{"\n"}
+          y lyrics search · a add · d delete{"\n"}
           o settings · +/- volume · m mute · Tab panel · ? help · q quit
         </Text>
         <Box marginTop={1}>
