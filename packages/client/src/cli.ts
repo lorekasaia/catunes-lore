@@ -23,6 +23,16 @@ import {
   downloadedSizeMB,
   assetForPlatform,
 } from "./ytdlp.ts";
+import { selfUpdate } from "./update.ts";
+import {
+  listThemes,
+  activeThemeName,
+  setTheme,
+  getTheme,
+  saveCustomTheme,
+  encodeTheme,
+  decodeTheme,
+} from "./theme.ts";
 import { t, setLocale, SUPPORTED_LOCALES, type Locale } from "./i18n.ts";
 
 /** Ensures yt-dlp is available if the playlist has any remote (streamed) URL. */
@@ -115,6 +125,7 @@ async function launchUI() {
     next: () => controlBus.emit("next"),
     prev: () => controlBus.emit("prev"),
     volume: (d) => controlBus.emit("volume", d),
+    sleep: (m) => controlBus.emit("sleep", m),
   });
 
   // Ink UI with the real-time audio analyzer (FFT visualizer).
@@ -270,6 +281,59 @@ switch (cmd) {
     if (!ok) {
       console.error(t("ctl.noPlayer"));
       process.exit(1);
+    }
+    break;
+  }
+  case "sleep": {
+    // catunes sleep 30  |  catunes sleep 0 (cancel)
+    const minutes = Number(arg);
+    if (!arg || !Number.isFinite(minutes) || minutes < 0) {
+      console.error(t("sleep.usage"));
+      process.exit(1);
+    }
+    const ok = await sendControl({ cmd: "sleep", minutes });
+    if (!ok) {
+      console.error(t("ctl.noPlayer"));
+      process.exit(1);
+    }
+    console.log(minutes > 0 ? t("sleep.set", { n: minutes }) : t("sleep.off"));
+    break;
+  }
+  case "update": {
+    console.log(t("update.running"));
+    const res = await selfUpdate((step) => console.log(`  → ${step}`));
+    if (res.status === "updated") console.log(t("update.done") + "\n" + res.log);
+    else if (res.status === "upToDate") console.log(t("update.upToDate"));
+    else if (res.status === "notGit") console.log(t("update.notGit"));
+    else {
+      console.error(t("update.failed", { step: res.step }) + "\n" + res.log);
+      process.exit(1);
+    }
+    break;
+  }
+  case "theme": {
+    // catunes theme list | export <name> | import "<code>"
+    if (arg === "export") {
+      const name = arg2 ?? activeThemeName();
+      const th = getTheme(name);
+      if (!th) {
+        console.error(t("theme.unknown", { name }));
+        process.exit(1);
+      }
+      console.log(encodeTheme(name, th));
+    } else if (arg === "import" && arg2) {
+      const parsed = decodeTheme(arg2);
+      if (!parsed) {
+        console.error(t("theme.badCode"));
+        process.exit(1);
+      }
+      saveCustomTheme(parsed.name, parsed.theme);
+      setTheme(parsed.name);
+      console.log(t("theme.imported", { name: parsed.name }));
+    } else {
+      const active = activeThemeName();
+      for (const name of listThemes()) console.log(`${name === active ? "▶" : " "} ${name}`);
+      console.log(`\n${t("theme.usage")}`);
     }
     break;
   }

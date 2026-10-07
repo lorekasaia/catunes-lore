@@ -30,12 +30,15 @@ USAGE:
   catunes setup          Download yt-dlp for your system (if needed)
   catunes config [k] [v] Show or change settings (lang, searchLimit)
   catunes doctor         Check dependencies (mpv, yt-dlp)
+  catunes update         Update catunes (git installs: pull + rebuild)
+  catunes theme ...      list | export <name> | import "<code>"
 
 CONTROL FROM ANY TAB (with a player running):
   catunes pause          Pause / resume
   catunes next           Next track
   catunes prev           Previous track
   catunes vol +5         Raise/lower volume (+5 / -5)
+  catunes sleep 30       Stop playback in 30 minutes (0 cancels)
   catunes off            Stop all playback (panic button)
 
 NOW PLAYING IN ANY TERMINAL:
@@ -101,7 +104,7 @@ CONTROLS (interface):
     "ui.searching": "Searching…",
     "ui.finding": "🔎 Finding similar tracks…",
     "ui.noResults": "No results.",
-    "ui.resultsLabel": " Results — ↵ play · Esc cancel ",
+    "ui.resultsLabel": " Results — ↵ play · u queue · Esc cancel ",
     "ui.lyricsLabel": " Lyrics ",
     "ui.lyricsNote":
       "Lyrics aren't shown in catunes (copyright) — opening a search in your browser:",
@@ -133,6 +136,10 @@ CONTROLS (interface):
   {a}e{/}        equalizer (theater modes)
   {a}f{/}        filter the current list
   {a}v{/}        cycle visualizer mode
+  {a}l / *{/}    favorite on/off
+  {a}u / U{/}    add to queue / view queue
+  {a}h{/}        history
+  {a}t{/}        sleep timer
 
   {gray-fg}Esc to close{/}`,
     "ui.langLabel": " Language ",
@@ -146,6 +153,61 @@ CONTROLS (interface):
     "ui.searchLimitLabel": " Search results ",
     "ui.resultsCount": "{n} results",
     "ui.playlistsLabel": " Playlists ",
+    "ui.optCrossfade": "Crossfade",
+    "ui.optOffline": "Offline cache",
+    "ui.optSleep": "Sleep timer",
+    "ui.optHistory": "History",
+    "ui.optUpdate": "Update catunes",
+    "sleep.usage": "Usage: catunes sleep <minutes>  (0 cancels)",
+    "sleep.label": "Sleep timer",
+    "sleep.set": "⏾ Sleep timer: stopping in {n} min",
+    "sleep.off": "⏾ Sleep timer off",
+    "sleep.endOfTrack": "⏾ Stopping at the end of this track",
+    "sleep.remaining": "{n} min left",
+    "sleep.optOff": "Off",
+    "sleep.optTrack": "At the end of this track",
+    "sleep.optMin": "{n} minutes",
+    "fav.added": "★ Added to favorites",
+    "fav.removed": "☆ Removed from favorites",
+    "queue.added": "⏭ Queued: {title}",
+    "queue.label": "Up next ({n})",
+    "queue.empty": "The queue is empty. Press u on a track (or a search result) to add it.",
+    "queue.hint": "↵ play now · d remove · esc close",
+    "history.label": "Recently played",
+    "history.empty": "Nothing played yet.",
+    "history.hint": "↵ play · x clear history · esc close",
+    "crossfade.note": "Fades the end of each track out and the next one in.",
+    "offline.note":
+      "Saves the audio of the songs you play so they work without internet. Only YouTube tracks (radios can't be saved). Saved now: {n}",
+    "offline.opt": "Keep the last {n}",
+    "offline.on": "💾 Offline cache: keeping the last {n} songs",
+    "offline.off": "💾 Offline cache off (saved songs deleted)",
+    "update.running": "⏳ Updating catunes…",
+    "update.done": "✅ Updated! Quit (q) and reopen catunes to use the new version.",
+    "update.upToDate": "✅ catunes is already up to date.",
+    "update.notGit": "This catunes wasn't installed from git. Update it with:  npm install -g catunes",
+    "update.failed": "❌ Update failed at: {step}",
+    "theme.optNew": "＋ Create a theme…",
+    "theme.optImport": "⇩ Import a theme code…",
+    "theme.optShare": "⇧ Share the current theme",
+    "theme.editLabel": "New theme",
+    "theme.editHint": "↑↓ part · ←→ color · ↵ save · esc back",
+    "theme.slotAccent": "Accent",
+    "theme.slotLow": "Low",
+    "theme.slotMid": "Mid",
+    "theme.slotHigh": "High",
+    "theme.namePrompt": "Name your theme and press Enter:",
+    "theme.importLabel": "Import theme",
+    "theme.importPrompt": "Paste a theme code (catunes-theme:…) and press Enter:",
+    "theme.shareLabel": "Share theme",
+    "theme.shareHint":
+      "Send this code to a friend: they import it in Settings → Theme (or `catunes theme import \"<code>\"`). It was also copied to the clipboard if your system allows it.",
+    "theme.savedLabel": "Theme saved",
+    "theme.saved": "✅ Saved and applied: {name}",
+    "theme.imported": "✅ Theme imported and applied: {name}",
+    "theme.badCode": "❌ That doesn't look like a valid theme code.",
+    "theme.unknown": "Unknown theme: {name}",
+    "theme.usage": "Usage: catunes theme [list | export <name> | import \"<code>\"]",
   },
   es: {
     "help.body": `
@@ -159,12 +221,15 @@ USO:
   catunes setup          Descarga yt-dlp para tu sistema (si hace falta)
   catunes config [k] [v] Ver o cambiar ajustes (lang, searchLimit)
   catunes doctor         Comprueba dependencias (mpv, yt-dlp)
+  catunes update         Actualiza catunes (instalacion con git: pull + compilar)
+  catunes theme ...      list | export <nombre> | import "<codigo>"
 
 CONTROL DESDE CUALQUIER PESTANA (con un reproductor en marcha):
   catunes pause          Pausa / reanuda
   catunes next           Siguiente cancion
   catunes prev           Cancion anterior
   catunes vol +5         Sube/baja el volumen (+5 / -5)
+  catunes sleep 30       Detiene la musica en 30 minutos (0 cancela)
   catunes off            Detiene toda la reproduccion (boton de panico)
 
 AHORA SUENA EN CUALQUIER TERMINAL:
@@ -230,7 +295,7 @@ CONTROLES (interfaz):
     "ui.searching": "Buscando…",
     "ui.finding": "🔎 Buscando canciones parecidas…",
     "ui.noResults": "Sin resultados.",
-    "ui.resultsLabel": " Resultados — ↵ reproducir · Esc cancelar ",
+    "ui.resultsLabel": " Resultados — ↵ reproducir · u a la cola · Esc cancelar ",
     "ui.lyricsLabel": " Letra ",
     "ui.lyricsNote":
       "La letra no se muestra en catunes (derechos de autor) — abriendo una búsqueda en tu navegador:",
@@ -262,6 +327,10 @@ CONTROLES (interfaz):
   {a}e{/}        ecualizador (modos de teatro)
   {a}f{/}        filtrar la lista actual
   {a}v{/}        cambiar modo del visualizador
+  {a}l / *{/}    favorito si/no
+  {a}u / U{/}    anadir a la cola / ver la cola
+  {a}h{/}        historial
+  {a}t{/}        temporizador de apagado
 
   {gray-fg}Esc para cerrar{/}`,
     "ui.langLabel": " Idioma ",
@@ -275,6 +344,61 @@ CONTROLES (interfaz):
     "ui.searchLimitLabel": " Resultados de busqueda ",
     "ui.resultsCount": "{n} resultados",
     "ui.playlistsLabel": " Listas ",
+    "ui.optCrossfade": "Transición suave",
+    "ui.optOffline": "Caché offline",
+    "ui.optSleep": "Temporizador de apagado",
+    "ui.optHistory": "Historial",
+    "ui.optUpdate": "Actualizar catunes",
+    "sleep.usage": "Uso: catunes sleep <minutos>  (0 cancela)",
+    "sleep.label": "Temporizador de apagado",
+    "sleep.set": "⏾ Temporizador: se detiene en {n} min",
+    "sleep.off": "⏾ Temporizador desactivado",
+    "sleep.endOfTrack": "⏾ Se detiene al terminar esta canción",
+    "sleep.remaining": "quedan {n} min",
+    "sleep.optOff": "Apagado",
+    "sleep.optTrack": "Al terminar esta canción",
+    "sleep.optMin": "{n} minutos",
+    "fav.added": "★ Añadida a favoritos",
+    "fav.removed": "☆ Quitada de favoritos",
+    "queue.added": "⏭ En cola: {title}",
+    "queue.label": "A continuación ({n})",
+    "queue.empty": "La cola está vacía. Pulsa u sobre una canción (o un resultado de búsqueda) para añadirla.",
+    "queue.hint": "↵ reproducir ya · d quitar · esc cerrar",
+    "history.label": "Escuchado recientemente",
+    "history.empty": "Todavía no has escuchado nada.",
+    "history.hint": "↵ reproducir · x borrar historial · esc cerrar",
+    "crossfade.note": "Baja suavemente el final de cada canción y sube el inicio de la siguiente.",
+    "offline.note":
+      "Guarda el audio de las canciones que escuchas para oírlas sin internet. Solo canciones de YouTube (las radios no se pueden guardar). Guardadas ahora: {n}",
+    "offline.opt": "Guardar las últimas {n}",
+    "offline.on": "💾 Caché offline: se guardan las últimas {n} canciones",
+    "offline.off": "💾 Caché offline desactivada (canciones guardadas borradas)",
+    "update.running": "⏳ Actualizando catunes…",
+    "update.done": "✅ ¡Actualizado! Sal (q) y vuelve a abrir catunes para usar la nueva versión.",
+    "update.upToDate": "✅ catunes ya está al día.",
+    "update.notGit": "Este catunes no se instaló con git. Actualízalo con:  npm install -g catunes",
+    "update.failed": "❌ La actualización falló en: {step}",
+    "theme.optNew": "＋ Crear un tema…",
+    "theme.optImport": "⇩ Importar un código de tema…",
+    "theme.optShare": "⇧ Compartir el tema actual",
+    "theme.editLabel": "Tema nuevo",
+    "theme.editHint": "↑↓ parte · ←→ color · ↵ guardar · esc volver",
+    "theme.slotAccent": "Acento",
+    "theme.slotLow": "Graves",
+    "theme.slotMid": "Medios",
+    "theme.slotHigh": "Agudos",
+    "theme.namePrompt": "Ponle nombre a tu tema y pulsa Enter:",
+    "theme.importLabel": "Importar tema",
+    "theme.importPrompt": "Pega un código de tema (catunes-theme:…) y pulsa Enter:",
+    "theme.shareLabel": "Compartir tema",
+    "theme.shareHint":
+      "Mándale este código a quien quieras: lo importa en Ajustes → Tema (o con `catunes theme import \"<código>\"`). También se copió al portapapeles si tu sistema lo permite.",
+    "theme.savedLabel": "Tema guardado",
+    "theme.saved": "✅ Guardado y aplicado: {name}",
+    "theme.imported": "✅ Tema importado y aplicado: {name}",
+    "theme.badCode": "❌ Eso no parece un código de tema válido.",
+    "theme.unknown": "Tema desconocido: {name}",
+    "theme.usage": "Uso: catunes theme [list | export <nombre> | import \"<código>\"]",
   },
 };
 

@@ -18,6 +18,7 @@ import { basename, join } from "node:path";
 import {
   PLAYLISTS_DIR,
   DEFAULT_PLAYLIST_NAME,
+  FAVORITES_PLAYLIST,
   TITLES_CACHE,
   ensureConfig,
   loadSettings,
@@ -98,7 +99,7 @@ export async function searchYouTube(
 }
 
 /** Extracts a YouTube video id from a watch/short URL, or null if it isn't one. */
-function youtubeId(url: string): string | null {
+export function youtubeId(url: string): string | null {
   const v = url.match(/[?&]v=([^&]+)/);
   if (v) return v[1]!;
   const short = url.match(/youtu\.be\/([^?&]+)/);
@@ -320,6 +321,33 @@ export function removeUrl(url: string): boolean {
   if (kept.length === lines.length) return false;
   writeFileSync(file, kept.join("\n"));
   return true;
+}
+
+// --- favorites (a fixed-name playlist, independent of the active one) ---
+
+function readUrls(file: string): string[] {
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((url) => url && !url.startsWith("#"));
+}
+
+/** URLs marked as favorite. */
+export function loadFavorites(): Set<string> {
+  ensureConfig();
+  return new Set(readUrls(playlistFile(FAVORITES_PLAYLIST)));
+}
+
+/** Adds/removes a URL from the favorites list. Returns true if it's now a favorite. */
+export function toggleFavorite(url: string): boolean {
+  ensureConfig();
+  const file = playlistFile(FAVORITES_PLAYLIST);
+  const urls = readUrls(file);
+  const isFav = urls.includes(url);
+  const next = isFav ? urls.filter((u) => u !== url) : [...urls, url];
+  writeFileSync(file, next.length ? `${next.join("\n")}\n` : "");
+  return !isFav;
 }
 
 // --- title cache ---

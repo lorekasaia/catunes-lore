@@ -17,11 +17,13 @@ export interface ControlHandlers {
   prev: () => void;
   volume: (delta: number) => void;
   stop?: () => void;
+  sleep?: (minutes: number) => void;
 }
 
 interface ControlMsg {
-  cmd: "pause" | "next" | "prev" | "vol" | "stop";
+  cmd: "pause" | "next" | "prev" | "vol" | "stop" | "sleep";
   delta?: number;
+  minutes?: number;
 }
 
 function dispatch(msg: ControlMsg, h: ControlHandlers) {
@@ -40,6 +42,9 @@ function dispatch(msg: ControlMsg, h: ControlHandlers) {
       break;
     case "stop":
       h.stop?.();
+      break;
+    case "sleep":
+      h.sleep?.(Number(msg.minutes) || 0);
       break;
   }
 }

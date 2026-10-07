@@ -61,7 +61,33 @@ Crea el tuyo editando `~/.config/catunes/themes.json`:
 ```
 
 `accent` es el color principal; `spectrum` son los colores grave/medio/agudo del
-visualizador (nombres de color del terminal: green, yellow, red, cyan, blue…).
+visualizador (nombres de color del terminal: green, yellow, red, cyan, blue…, o
+hex como `#ff79c6`).
+
+También puedes crear uno dentro de la app — **Ajustes → Tema → Crear un tema…** —
+y compartirlo como un código de una línea:
+
+```bash
+catunes theme export Dracula     # → catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd
+catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
+```
+
+### Extras para escuchar 🌙
+
+| Tecla | Qué hace |
+| --- | --- |
+| `t` | **Temporizador de apagado** — detiene la música en 15/30/45/60/90 min o al terminar la canción (baja el volumen en los últimos 30s). También `catunes sleep 30` desde otra pestaña. |
+| `l` / `*` | **Favorito** la canción seleccionada; se juntan en la lista `★ Favorites`. |
+| `u` / `U` | **Cola**: reproducir después de esta (también en resultados de búsqueda) / ver la cola. |
+| `h` | **Historial** de lo que sonó; Enter la vuelve a poner. |
+
+En **Ajustes (`o`)**:
+
+- **Transición suave** — baja el final de cada canción y sube el inicio de la siguiente (2–10s).
+- **Caché offline** — guarda el audio de las últimas N canciones de YouTube que
+  escuchaste en `~/.config/catunes/offline/` para oírlas sin internet. Apagada por defecto.
+- **Actualizar catunes** — para instalaciones con git (como el bootstrap de
+  Termux): `git pull` + recompilar, sin escribir nada. También `catunes update`.
 
 ---
 
@@ -112,7 +138,10 @@ catunes/
 
 ## Aviso legal
 
-catunes **no** almacena ni convierte música — solo reproduce streams.
+Por defecto catunes **no** descarga, almacena ni convierte música — solo
+reproduce streams. La caché offline opcional (apagada por defecto) guarda una
+copia local de lo que escuchaste recientemente para tu uso personal; actívala
+solo donde los términos de la plataforma lo permitan.
 Úsalo únicamente con contenido que tengas derecho a reproducir y respetando
 los términos de cada plataforma. El uso es responsabilidad de cada usuario.
 

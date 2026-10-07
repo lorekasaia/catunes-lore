@@ -61,7 +61,33 @@ Create your own by editing `~/.config/catunes/themes.json`:
 ```
 
 `accent` is the main color; `spectrum` is the visualizer's low/mid/high colors
-(terminal color names: green, yellow, red, cyan, blue, magenta, white…).
+(terminal color names: green, yellow, red, cyan, blue, magenta, white…, or hex
+like `#ff79c6`).
+
+You can also build one inside the app — **Settings → Theme → Create a theme…** —
+and share it as a one-line code:
+
+```bash
+catunes theme export Dracula     # → catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd
+catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
+```
+
+### Listening extras 🌙
+
+| Key | What it does |
+| --- | --- |
+| `t` | **Sleep timer** — stop in 15/30/45/60/90 min or at the end of the track (fades out over the last 30s). Also `catunes sleep 30` from another tab. |
+| `l` / `*` | **Favorite** the selected track; they collect in the `★ Favorites` list. |
+| `u` / `U` | **Queue** a track to play next (also works on search results) / view the queue. |
+| `h` | **History** of what played recently; Enter plays it again. |
+
+In **Settings (`o`)**:
+
+- **Crossfade** — fades each track out and the next one in (2–10s).
+- **Offline cache** — keeps the audio of the last N YouTube tracks you played in
+  `~/.config/catunes/offline/` so they play without internet. Off by default.
+- **Update catunes** — for git installs (like the Termux bootstrap): `git pull`
+  + rebuild, no typing needed. Also `catunes update`.
 
 ---
 
@@ -112,7 +138,10 @@ catunes/
 
 ## Disclaimer
 
-catunes does **not** download, store or convert music — it only plays streams.
+By default catunes does **not** download, store or convert music — it only plays
+streams. The optional offline cache (off by default) keeps a local copy of
+recently played tracks for your personal use; only enable it where the
+platform's terms allow it.
 Use it only with content you have the right to play, and respect each
 platform's terms of service. How you use it is your responsibility.
 

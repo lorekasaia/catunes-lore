@@ -191,11 +191,17 @@ export class Player extends EventEmitter {
 
   // --- Public API (used by the keyboard or the room) ---
 
-  /** Loads and plays a URL or file path. */
-  load(url: string) {
+  /**
+   * Loads and plays a URL or file path. `source` is what mpv actually opens
+   * (e.g. an offline-cached copy) while `url` stays the track's identity;
+   * `title` overrides mpv's media title (a cached file would show its id).
+   */
+  load(url: string, opts: { source?: string; title?: string } = {}) {
     this.state.url = url;
-    this.state.title = url;
-    this.send({ command: ["loadfile", url, "replace"] });
+    this.state.title = opts.title ?? url;
+    // force-media-title persists across files, so always (re)set it ("" = unset).
+    this.send({ command: ["set_property", "force-media-title", opts.title ?? ""] });
+    this.send({ command: ["loadfile", opts.source ?? url, "replace"] });
     this.setPause(false);
     this.emit("state", this.state);
   }
@@ -235,6 +241,10 @@ export class Player extends EventEmitter {
 
   stop() {
     this.send({ command: ["stop"] });
+    this.state.url = null;
+    this.state.position = 0;
+    this.state.duration = 0;
+    this.emit("state", this.state);
   }
 
   quit() {

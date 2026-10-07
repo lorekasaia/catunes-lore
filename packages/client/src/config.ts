@@ -22,6 +22,15 @@ export const TITLES_CACHE = join(CONFIG_DIR, "titles.json");
 export const SETTINGS_FILE = join(CONFIG_DIR, "settings.json");
 // Custom color themes (name -> { accent, spectrum }).
 export const THEMES_FILE = join(CONFIG_DIR, "themes.json");
+// Playback history (most recent first), shown with `h`.
+export const HISTORY_FILE = join(CONFIG_DIR, "history.json");
+// Offline cache: audio of recently played tracks, kept so they play without
+// internet. Opt-in (settings.offlineCache = how many tracks to keep).
+export const OFFLINE_DIR = join(CONFIG_DIR, "offline");
+export const OFFLINE_INDEX = join(OFFLINE_DIR, "index.json");
+// The favorites list is a regular playlist file with a fixed name, so it
+// shows in the sidebar and plays like any other list.
+export const FAVORITES_PLAYLIST = "★ Favorites";
 // "Now playing" status for integration with tmux/zellij or other bars.
 export const STATUS_FILE = join(CONFIG_DIR, "status.txt");
 // Control socket: lets you drive the running player from another tab.
@@ -118,6 +127,8 @@ export interface Settings {
   vizMode?: string;
   eqGains?: number[]; // 10-band equalizer (dB per band)
   eqNight?: boolean; // home-theater-style night mode (dynamic-range compression)
+  crossfade?: number; // seconds of fade-out/fade-in between tracks (0 = off)
+  offlineCache?: number; // how many recent tracks to keep for offline play (0 = off)
   // Resume: last track + position within the last playlist.
   lastPlaylist?: string;
   lastUrl?: string;
