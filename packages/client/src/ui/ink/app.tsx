@@ -814,6 +814,54 @@ const SETTINGS_ITEMS: [string, string][] = [
   ["ui.optShortcuts", "help"],
 ];
 
+// Keyboard shortcuts screen (`?`, or Settings → Keyboard shortcuts).
+// [keys, i18n description]; an empty key starts a new section.
+const HELP_ROWS: [string, string][] = [
+  ["", "keys.secPlayback"],
+  ["Space", "keys.pause"],
+  ["Enter", "keys.play"],
+  ["← →", "keys.seek"],
+  ["n / p", "keys.nextPrev"],
+  ["s", "keys.shuffle"],
+  ["r", "keys.repeat"],
+  ["+ / -", "keys.volume"],
+  ["m", "keys.mute"],
+  ["", "keys.secLists"],
+  ["↑ ↓", "keys.navigate"],
+  ["Tab", "keys.tab"],
+  ["/", "keys.search"],
+  ["z", "keys.similar"],
+  ["f", "keys.filter"],
+  ["a", "keys.add"],
+  ["d", "keys.delete"],
+  ["", "keys.secExtras"],
+  ["l / *", "keys.fav"],
+  ["u", "keys.queueAdd"],
+  ["U", "keys.queueView"],
+  ["h", "keys.history"],
+  ["t", "keys.sleep"],
+  ["y", "keys.lyrics"],
+  ["", "keys.secLook"],
+  ["v", "keys.viz"],
+  ["e", "keys.eq"],
+  ["", "keys.secInside"],
+  ["u", "keys.inResults"],
+  ["d", "keys.inQueue"],
+  ["x", "keys.inHistory"],
+  ["p · 0", "keys.inEq"],
+  ["← →", "keys.inThemeEdit"],
+  ["", "keys.secSettings"],
+  ["o", "keys.settings"],
+  ["·", "keys.setTheme"],
+  ["·", "keys.setCrossfade"],
+  ["·", "keys.setOffline"],
+  ["·", "keys.setUpdate"],
+  ["·", "keys.setLang"],
+  ["", "keys.secApp"],
+  ["?", "keys.help"],
+  ["q", "keys.quit"],
+];
+
 /** Overlays that take free text input (Enter submits, Esc cancels). */
 const TEXT_INPUTS = ["searchInput", "addInput", "themeName", "themeImport"];
 
@@ -1453,7 +1501,12 @@ function App({
       return;
     }
 
-    if (overlay.kind === "help") return closeOverlay();
+    if (overlay.kind === "help") {
+      // ↑↓ scroll (the list is long on a phone screen); any other key closes.
+      if (key.upArrow) return setSel((i) => Math.max(0, i - 1));
+      if (key.downArrow) return setSel((i) => Math.min(HELP_ROWS.length - 1, i + 1));
+      return closeOverlay();
+    }
     if (overlay.kind === "lyrics") return closeOverlay();
     if (overlay.kind === "message") return closeOverlay();
 
@@ -2190,18 +2243,26 @@ function renderOverlay(
   }
   if (overlay.kind === "help") {
     return (
-      <Modal title={t("ui.helpLabel").trim()} cols={cols} rows={rows}>
-        <Text>
-          ↑↓ navigate · ↵ play · space pause · ←→ seek{"\n"}
-          n/p next/prev · s shuffle · r repeat · v visualizer{"\n"}
-          e equalizer · f filter · / search · z similar tracks{"\n"}
-          y lyrics search · a add · d delete{"\n"}
-          l (or *) favorite · u add to queue · U view queue{"\n"}
-          h history · t sleep timer{"\n"}
-          o settings · +/- volume · m mute · Tab panel · ? help · q quit
-        </Text>
+      <Modal title={t("ui.helpLabel").trim()} cols={cols} rows={rows} width={Math.min(cols - 4, 72)}>
+        {(() => {
+          // Window of rows that fits the screen; `sel` is the scroll offset.
+          const fit = Math.max(5, rows - 11);
+          const start = Math.max(0, Math.min(sel, HELP_ROWS.length - fit));
+          return HELP_ROWS.slice(start, start + fit).map(([k, desc], i) =>
+            k === "" ? (
+              <Text key={i} bold color={accent} underline>
+                {t(desc)}
+              </Text>
+            ) : (
+              <Text key={i} wrap="truncate">
+                <Text color={accent}>{`  ${k}`.padEnd(9)}</Text>
+                {t(desc)}
+              </Text>
+            ),
+          );
+        })()}
         <Box marginTop={1}>
-          <Text dimColor>esc to close</Text>
+          <Text dimColor>{t("keys.hint")}</Text>
         </Box>
       </Modal>
     );
