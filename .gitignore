@@ -9,6 +9,7 @@ bin/
 *.tgz
 # artefactos de compilación local (bun build --compile)
 /catunes.exe
+/catunes.exe.old
 /mpv.exe
 *.bun-build
 # Android launcher-wrapper build artifacts
