@@ -1,10 +1,14 @@
 // Self-update for git installs (e.g. the Termux bootstrap): `git pull`, then
 // reinstall deps + rebuild only if something actually changed. npm installs
 // (`npm i -g catunes`) have no .git, so we just tell the user what to run.
+//
+// A standalone binary made with `bun build --compile` (e.g. a catunes.exe
+// pinned to the Windows taskbar) is a frozen snapshot, so after rebuilding
+// we also recompile that binary in place.
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, renameSync, rmSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export type UpdateResult =
@@ -13,14 +17,42 @@ export type UpdateResult =
   | { status: "notGit" }
   | { status: "failed"; step: string; log: string };
 
-/** Walks up from this file to the repo root (the folder holding .git). */
-export function findRepoRoot(start = dirname(fileURLToPath(import.meta.url))): string | null {
+/** True when running as a `bun build --compile` binary (not node/bun + script). */
+export function isCompiledBinary(): boolean {
+  return !/^(node|bun)(\.exe)?$/i.test(basename(process.execPath));
+}
+
+function walkUpToGit(start: string): string | null {
   let dir = start;
   for (;;) {
     if (existsSync(join(dir, ".git"))) return dir;
     const up = dirname(dir);
     if (up === dir) return null;
     dir = up;
+  }
+}
+
+/**
+ * The repo root (the folder holding .git): found from this source file, or —
+ * inside a compiled binary, whose sources live in a virtual filesystem — from
+ * the binary's own location.
+ */
+export function findRepoRoot(): string | null {
+  if (isCompiledBinary()) return walkUpToGit(dirname(process.execPath));
+  try {
+    return walkUpToGit(dirname(fileURLToPath(import.meta.url)));
+  } catch {
+    return null;
+  }
+}
+
+/** Deletes the previous binary left behind by a self-update (see selfUpdate). */
+export function cleanupOldBinary(): void {
+  if (!isCompiledBinary()) return;
+  try {
+    rmSync(`${process.execPath}.old`, { force: true });
+  } catch {
+    // still locked or not there: try again next launch
   }
 }
 
@@ -36,8 +68,11 @@ function buildEnv(): NodeJS.ProcessEnv {
 
 function run(cmd: string, args: string[], cwd: string): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
-    // shell: needed on Windows to find npm.cmd; harmless elsewhere.
-    const p = spawn(cmd, args, { cwd, shell: process.platform === "win32", env: buildEnv() });
+    // shell: needed on Windows to find npm.cmd. The shell joins args with
+    // spaces, so quote any that contain one (e.g. "cursos lore").
+    const shell = process.platform === "win32";
+    const argv = shell ? args.map((a) => (/\s/.test(a) ? `"${a}"` : a)) : args;
+    const p = spawn(cmd, argv, { cwd, shell, env: buildEnv() });
     let out = "";
     p.stdout?.on("data", (d) => (out += d.toString()));
     p.stderr?.on("data", (d) => (out += d.toString()));
@@ -70,6 +105,33 @@ export async function selfUpdate(onStep: (step: string) => void = () => {}): Pro
   onStep("npm run build");
   const build = await run("npm", ["run", "build"], client);
   if (build.code !== 0) return { status: "failed", step: "npm run build", log: tail(build.out) };
+
+  if (isCompiledBinary()) {
+    // Windows can't overwrite a running .exe, but it can rename it: move the
+    // running one aside, compile the new one in its place, roll back on failure.
+    onStep("bun build --compile");
+    const exe = process.execPath;
+    const old = `${exe}.old`;
+    try {
+      rmSync(old, { force: true });
+      renameSync(exe, old);
+    } catch (e) {
+      return { status: "failed", step: "bun build --compile", log: String(e) };
+    }
+    const compile = await run(
+      "bun",
+      ["build", "--compile", join(client, "src", "cli.ts"), "--outfile", exe],
+      root,
+    );
+    if (compile.code !== 0 || !existsSync(exe)) {
+      try {
+        renameSync(old, exe);
+      } catch {
+        // ignore
+      }
+      return { status: "failed", step: "bun build --compile", log: tail(compile.out) };
+    }
+  }
 
   const log = await run("git", ["log", "--oneline", `${before.out.trim()}..${after.out.trim()}`], root);
   return { status: "updated", log: tail(log.out, 8) };

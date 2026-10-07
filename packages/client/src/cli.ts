@@ -23,7 +23,7 @@ import {
   downloadedSizeMB,
   assetForPlatform,
 } from "./ytdlp.ts";
-import { selfUpdate } from "./update.ts";
+import { selfUpdate, cleanupOldBinary } from "./update.ts";
 import {
   listThemes,
   activeThemeName,
@@ -102,6 +102,8 @@ async function launchUI() {
   }
   // Keep the title cache bounded: drop entries for tracks no longer in any list.
   pruneTitleCache();
+  // Remove the binary a previous self-update moved aside.
+  cleanupOldBinary();
   const mpv = checkMpv();
   if (!mpv.found) {
     console.error(t("err.mpvMissing", { hint: installHint("mpv") }));
