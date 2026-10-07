@@ -98,13 +98,18 @@ export async function selfUpdate(onStep: (step: string) => void = () => {}): Pro
   const after = await run("git", ["rev-parse", "HEAD"], root);
   if (before.out.trim() === after.out.trim()) return { status: "upToDate" };
 
-  onStep("npm install");
-  const install = await run("npm", ["install"], client);
-  if (install.code !== 0) return { status: "failed", step: "npm install", log: tail(install.out) };
+  // Use bun where the checkout is managed by bun (bun.lock + bun available —
+  // npm chokes on bun's node_modules layout); npm otherwise (e.g. Termux).
+  const useBun = existsSync(join(root, "bun.lock")) && (await run("bun", ["--version"], root)).code === 0;
+  const pm = useBun ? "bun" : "npm";
 
-  onStep("npm run build");
-  const build = await run("npm", ["run", "build"], client);
-  if (build.code !== 0) return { status: "failed", step: "npm run build", log: tail(build.out) };
+  onStep(`${pm} install`);
+  const install = await run(pm, ["install"], useBun ? root : client);
+  if (install.code !== 0) return { status: "failed", step: `${pm} install`, log: tail(install.out) };
+
+  onStep(`${pm} run build`);
+  const build = await run(pm, ["run", "build"], client);
+  if (build.code !== 0) return { status: "failed", step: `${pm} run build`, log: tail(build.out) };
 
   if (isCompiledBinary()) {
     // Windows can't overwrite a running .exe, but it can rename it: move the
