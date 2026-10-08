@@ -104,7 +104,9 @@ export async function selfUpdate(onStep: (step: string) => void = () => {}): Pro
   const pm = useBun ? "bun" : "npm";
 
   onStep(`${pm} install`);
-  const install = await run(pm, ["install"], useBun ? root : client);
+  // --include=dev: the build needs TypeScript (a devDependency), even where
+  // npm is configured to skip devDependencies.
+  const install = await run(pm, useBun ? ["install"] : ["install", "--include=dev"], useBun ? root : client);
   if (install.code !== 0) return { status: "failed", step: `${pm} install`, log: tail(install.out) };
 
   onStep(`${pm} run build`);

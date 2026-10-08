@@ -8,8 +8,14 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import ffmpegPath from "ffmpeg-static";
+import { existsSync } from "node:fs";
+import ffmpegStatic from "ffmpeg-static";
 import { ytDlpCommand } from "./ytdlp.ts";
+
+// ffmpeg-static ships no binary for some platforms (e.g. Android/Termux, where
+// it resolves to null): fall back to the system ffmpeg on PATH there.
+const ffmpegPath: string =
+  process.env.FFMPEG_BIN || (ffmpegStatic && existsSync(ffmpegStatic) ? ffmpegStatic : "ffmpeg");
 
 const SAMPLE_RATE = 22050;
 const FFT_SIZE = 1024;
@@ -215,7 +221,7 @@ export class AudioAnalyzer extends EventEmitter {
   /** Spawns ffmpeg with the given input args and wires its PCM output to the FFT. */
   private spawnFfmpeg(inputArgs: string[], onAudio?: () => void): ChildProcess {
     const args = [...inputArgs, "-f", "s16le", "-ac", "1", "-ar", String(SAMPLE_RATE), "-"];
-    const ff = spawn(ffmpegPath!, args, { stdio: ["pipe", "pipe", "ignore"] });
+    const ff = spawn(ffmpegPath, args, { stdio: ["pipe", "pipe", "ignore"] });
     ff.on("error", () => {});
     // Guard the streams: when we switch tracks we SIGKILL these processes
     // mid-pipe, which raises EPIPE on stdout/stdin. Without these handlers
