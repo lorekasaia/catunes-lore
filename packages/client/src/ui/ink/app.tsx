@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { EventEmitter } from "node:events";
 import { spawn as spawnProcess } from "node:child_process";
 import { render, Box, Text, useApp, useInput, useStdout } from "ink";
-import type { Player } from "../../player.ts";
+import type { Player, ResolvedTrack } from "../../player.ts";
 import { EQ_BANDS } from "../../player.ts";
 import {
   type Track,
@@ -27,6 +27,8 @@ import {
   fetchSimilar,
   loadFavorites,
   toggleFavorite,
+  cacheMeta,
+  youtubeId,
 } from "../../playlist.ts";
 import {
   theme,
@@ -940,6 +942,8 @@ function App({
   // The volume the user chose. Fades (crossfade, sleep timer) temporarily lower
   // mpv's volume and then restore this — they never change the saved setting.
   const userVolRef = useRef(player.state.volume);
+  // Remote track whose visualizer starts once mpv resolves its stream.
+  const pendingAnalyzeRef = useRef<{ url: string; fromSec: number } | null>(null);
   const fadingRef = useRef(false);
   const mutedRef = useRef<number | null>(null);
   mutedRef.current = mutedVol;
@@ -963,14 +967,21 @@ function App({
    */
   const startTrack = (url: string, title?: string, fromSec = 0) => {
     const local = cachedFile(url);
+    pendingAnalyzeRef.current = null;
     try {
       player.load(url, local ? { source: local, title } : {});
-      analyzer.start(local ?? url, fromSec);
+      if (local || !/^https?:\/\//i.test(url)) {
+        analyzer.startDirect(local ?? url, fromSec, () => player.state.position);
+      } else {
+        // Remote: wait until mpv has resolved the stream and reuse it
+        // ("resolved" below) instead of running a second yt-dlp.
+        analyzer.stop();
+        pendingAnalyzeRef.current = { url, fromSec };
+      }
     } catch {
       // A bad URL must never crash the UI.
     }
     addHistory(url, title ?? url);
-    if (!local) cacheInBackground(url, loadSettings().offlineCache ?? 0);
   };
   const play = (i: number) => {
     const tr = tracks[i];
@@ -1116,6 +1127,38 @@ function App({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player, tracks, current, shuffle, repeat, queue]);
+
+  // mpv resolved the playing track (one yt-dlp run): reuse that for the
+  // visualizer, the list's metadata and the offline cache — no extra requests.
+  useEffect(() => {
+    const onResolved = (r: ResolvedTrack) => {
+      if (r.url !== player.state.url) return;
+      const pending = pendingAnalyzeRef.current;
+      if (pending?.url === r.url) {
+        pendingAnalyzeRef.current = null;
+        if (r.stream) {
+          analyzer.startDirect(r.stream, pending.fromSec, () => player.state.position, r.headers);
+        } else {
+          analyzer.start(r.url, pending.fromSec); // no single direct URL: old path
+        }
+      }
+      // Only YouTube metadata is trusted: for radios yt-dlp would report the
+      // stream's file name and overwrite the curated station names.
+      if (youtubeId(r.url)) {
+        const meta = cacheMeta(r.url, { title: r.title, duration: r.duration, artist: r.artist });
+        if (meta) {
+          setTracks((prev) =>
+            prev.map((tr) => (tr.url === r.url ? { ...tr, ...meta, resolved: true } : tr)),
+          );
+        }
+        if (!cachedFile(r.url)) cacheInBackground(r.url, loadSettings().offlineCache ?? 0, r);
+      }
+    };
+    player.on("resolved", onResolved);
+    return () => {
+      player.off("resolved", onResolved);
+    };
+  }, [player, analyzer]);
 
   useEffect(() => {
     const onPause = () => player.togglePause();
@@ -1554,8 +1597,12 @@ function App({
     if (ch === "q") return quit();
     if (ch === " ") return player.togglePause();
     if (key.tab) return setFocus((f) => (f === "tracks" ? "sidebar" : "tracks"));
-    if (key.leftArrow) return player.seek(-5);
-    if (key.rightArrow) return player.seek(5);
+    if (key.leftArrow || key.rightArrow) {
+      const d = key.leftArrow ? -5 : 5;
+      player.seek(d);
+      analyzer.seek(Math.max(0, player.state.position + d)); // keep the visualizer in step
+      return;
+    }
     if (ch === "n") return advance(false);
     if (ch === "p") return play((current - 1 + tracks.length) % (tracks.length || 1));
     if (ch === "s") return setShuffle((v) => !v);
@@ -1685,7 +1732,7 @@ function App({
       const n = OFFLINE_PRESETS[sel] ?? 0;
       saveSettings({ offlineCache: n });
       trimCache(n); // shrinking (or turning off) frees the space right away
-      if (n > 0 && state.url) cacheInBackground(state.url, n);
+      // The current track gets cached the next time it loads (from mpv's stream).
       toast(n > 0 ? t("offline.on", { n }) : t("offline.off"));
       return closeOverlay();
     }

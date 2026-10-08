@@ -110,12 +110,18 @@ export class AudioAnalyzer extends EventEmitter {
   private buf: Buffer = Buffer.alloc(0);
   private peak = { v: 0 };
   private gen = 0;
+  // Set while reading a direct stream or a local file (see startDirect).
+  private source: {
+    input: string;
+    headers?: Record<string, string>;
+    getPos: () => number;
+    failures: number; // consecutive runs that produced no audio
+  } | null = null;
 
   /**
-   * Starts analyzing a track. For remote URLs we pipe yt-dlp → ffmpeg so
-   * yt-dlp handles YouTube's ranged/DASH delivery and feeds the FULL stream
-   * (a raw direct URL would cut off after the first chunk). For local files
-   * ffmpeg reads directly (and can fast-seek with -ss).
+   * Starts analyzing a track by running its own yt-dlp → ffmpeg pipe (remote
+   * URLs) or reading the file (local paths). Prefer startDirect when the
+   * player has already resolved the stream: this costs an extra extraction.
    */
   start(url: string, fromSec = 0): void {
     this.stop();
@@ -138,22 +144,88 @@ export class AudioAnalyzer extends EventEmitter {
       if (fromSec > 0) args.push("-ss", String(Math.floor(fromSec)));
       args.push("-i", url);
     }
-    args.push("-f", "s16le", "-ac", "1", "-ar", String(SAMPLE_RATE), "-");
+    const ff = this.spawnFfmpeg(args);
+    if (yt?.stdout && ff.stdin) {
+      yt.stdout.on("error", () => {});
+      yt.stdout.pipe(ff.stdin);
+    }
+    this.procs = yt ? [yt, ff] : [ff];
+  }
 
-    const ff = spawn(ffmpegPath, args, { stdio: ["pipe", "pipe", "ignore"] });
+  /**
+   * Analyzes a direct media URL that the player already resolved (or a local
+   * file) — no extra yt-dlp call, so one YouTube extraction per track instead
+   * of two. getPos reports the playback position: servers like YouTube's drop
+   * long single requests, so when that happens we resume where playback is.
+   */
+  startDirect(
+    input: string,
+    fromSec: number,
+    getPos: () => number,
+    headers?: Record<string, string>,
+  ): void {
+    this.stop();
+    this.source = { input, headers, getPos, failures: 0 };
+    this.spawnDirect(fromSec);
+  }
+
+  /** Follows a seek (only possible for startDirect sources). */
+  seek(sec: number): void {
+    if (!this.source) return;
+    this.killProcs();
+    this.spawnDirect(sec);
+  }
+
+  private spawnDirect(fromSec: number): void {
+    const src = this.source;
+    if (!src || !ffmpegPath) return;
+    const myGen = ++this.gen;
+    const remote = /^https?:\/\//i.test(src.input);
+    const args = ["-hide_banner", "-loglevel", "quiet", "-re"];
+    if (remote) {
+      args.push("-reconnect", "1", "-reconnect_delay_max", "2");
+      const h = src.headers ?? {};
+      const ua = Object.entries(h).find(([k]) => k.toLowerCase() === "user-agent")?.[1];
+      if (ua) args.push("-user_agent", ua);
+      const rest = Object.entries(h)
+        .filter(([k]) => k.toLowerCase() !== "user-agent")
+        .map(([k, v]) => `${k}: ${v}\r\n`)
+        .join("");
+      if (rest) args.push("-headers", rest);
+    }
+    if (fromSec > 0) args.push("-ss", String(Math.floor(fromSec)));
+    args.push("-i", src.input);
+
+    let gotAudio = false;
+    const ff = this.spawnFfmpeg(args, () => (gotAudio = true));
+    this.procs = [ff];
+    if (!remote) return; // a local file only ends at its real end
+    ff.on("close", () => {
+      if (myGen !== this.gen || this.source !== src) return; // replaced/stopped on purpose
+      // Dropped connection: resume at the playback position. Give up after a
+      // few runs in a row with no audio (track over, or the URL expired).
+      src.failures = gotAudio ? 0 : src.failures + 1;
+      if (src.failures >= 3) return;
+      setTimeout(() => {
+        if (myGen === this.gen && this.source === src) this.spawnDirect(src.getPos());
+      }, gotAudio ? 0 : 3000);
+    });
+  }
+
+  /** Spawns ffmpeg with the given input args and wires its PCM output to the FFT. */
+  private spawnFfmpeg(inputArgs: string[], onAudio?: () => void): ChildProcess {
+    const args = [...inputArgs, "-f", "s16le", "-ac", "1", "-ar", String(SAMPLE_RATE), "-"];
+    const ff = spawn(ffmpegPath!, args, { stdio: ["pipe", "pipe", "ignore"] });
     ff.on("error", () => {});
     // Guard the streams: when we switch tracks we SIGKILL these processes
     // mid-pipe, which raises EPIPE on stdout/stdin. Without these handlers
     // that error is unhandled and crashes the whole UI.
     ff.stdin?.on("error", () => {});
     ff.stdout?.on("error", () => {});
-    if (yt?.stdout && ff.stdin) {
-      yt.stdout.on("error", () => {});
-      yt.stdout.pipe(ff.stdin);
-    }
 
     const bytesPerFrame = FFT_SIZE * 2;
     ff.stdout?.on("data", (chunk: Buffer) => {
+      onAudio?.();
       this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
       while (this.buf.length >= bytesPerFrame) {
         const frame = this.buf.subarray(0, bytesPerFrame);
@@ -162,7 +234,7 @@ export class AudioAnalyzer extends EventEmitter {
         this.emit("wave", waveFrom(frame));
       }
     });
-    this.procs = yt ? [yt, ff] : [ff];
+    return ff;
   }
 
   /** Freezes the analysis (kept in sync with the player on pause). */
@@ -187,7 +259,12 @@ export class AudioAnalyzer extends EventEmitter {
   }
 
   stop(): void {
-    this.gen++; // invalidate any in-flight start()
+    this.source = null;
+    this.killProcs();
+  }
+
+  private killProcs(): void {
+    this.gen++; // invalidate any in-flight start()/restart
     for (const p of this.procs) {
       try {
         p.kill("SIGKILL");

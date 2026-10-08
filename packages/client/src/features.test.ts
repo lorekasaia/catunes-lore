@@ -2,6 +2,7 @@ import { test, expect } from "bun:test";
 import { pushEntry } from "./history.ts";
 import { urlsToEvict } from "./offline.ts";
 import { encodeTheme, decodeTheme } from "./theme.ts";
+import { parseYtdlJson } from "./player.ts";
 
 test("pushEntry puts the newest first and caps the list", () => {
   const list = [
@@ -40,4 +41,30 @@ test("decodeTheme rejects garbage", () => {
   expect(decodeTheme("hello")).toBeNull();
   expect(decodeTheme("catunes-theme:X:red,green")).toBeNull();
   expect(decodeTheme("catunes-theme:X:red,green,blue,not a color")).toBeNull();
+});
+
+test("parseYtdlJson reuses mpv's yt-dlp result (stream + metadata)", () => {
+  const json = JSON.stringify({
+    title: "Song",
+    uploader: "Artist",
+    duration: 215,
+    url: "https://rr1.googlevideo.com/videoplayback?x=1",
+    ext: "webm",
+    http_headers: { "User-Agent": "UA" },
+  });
+  const r = parseYtdlJson("https://www.youtube.com/watch?v=a", json, "edl://whatever");
+  expect(r).toEqual({
+    url: "https://www.youtube.com/watch?v=a",
+    stream: "https://rr1.googlevideo.com/videoplayback?x=1",
+    ext: "webm",
+    headers: { "User-Agent": "UA" },
+    title: "Song",
+    duration: 215,
+    artist: "Artist",
+  });
+});
+
+test("parseYtdlJson falls back to mpv's stream URL, never to edl://", () => {
+  expect(parseYtdlJson("u", "", "https://radio/stream").stream).toBe("https://radio/stream");
+  expect(parseYtdlJson("u", "not json", "edl://x").stream).toBeNull();
 });

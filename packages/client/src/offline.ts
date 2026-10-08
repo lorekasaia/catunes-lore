@@ -16,7 +16,9 @@ import {
   writeFileSync,
   renameSync,
   rmSync,
+  appendFileSync,
 } from "node:fs";
+import { join } from "node:path";
 import { OFFLINE_DIR, OFFLINE_INDEX } from "./config.ts";
 import { ytDlpCommand } from "./ytdlp.ts";
 import { youtubeId } from "./playlist.ts";
@@ -90,16 +92,71 @@ export function isCacheable(url: string): boolean {
   return youtubeId(url) !== null;
 }
 
+function register(url: string, file: string, keep: number): void {
+  const index = loadIndex();
+  index[url] = { file, at: Date.now() };
+  evict(index, keep);
+  saveIndex(index);
+}
+
+// YouTube throttles single long requests, so fetch in ranged chunks (like yt-dlp).
+const CHUNK = 10 * 1024 * 1024;
+
+/** Downloads a direct media URL to `file` (via a .part file) in ranged chunks. */
+async function downloadDirect(
+  stream: string,
+  file: string,
+  headers: Record<string, string> = {},
+): Promise<boolean> {
+  const part = `${file}.part`;
+  try {
+    rmSync(part, { force: true });
+    for (let from = 0; ; from += CHUNK) {
+      const res = await fetch(stream, {
+        headers: { ...headers, Range: `bytes=${from}-${from + CHUNK - 1}` },
+        signal: AbortSignal.timeout(60_000),
+      });
+      if (res.status === 416) break; // asked past the end: done
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = Buffer.from(await res.arrayBuffer());
+      appendFileSync(part, body);
+      // Total size from "Content-Range: bytes a-b/total"; stop once we have it all.
+      const total = Number(res.headers.get("content-range")?.split("/")[1]);
+      if (res.status === 200 || body.length < CHUNK || (total && from + body.length >= total)) break;
+    }
+    renameSync(part, file);
+    return true;
+  } catch {
+    rmSync(part, { force: true });
+    return false;
+  }
+}
+
 /**
  * Downloads a track's audio in the background (no-op if it's already cached,
  * downloading, not cacheable, or caching is off). Then trims the cache to
  * `keep` tracks.
+ *
+ * Pass `resolved` (the direct stream mpv already got) to download it with no
+ * extra YouTube extraction; without it we fall back to running yt-dlp.
  */
-export function cacheInBackground(url: string, keep: number): void {
+export function cacheInBackground(
+  url: string,
+  keep: number,
+  resolved?: { stream: string | null; ext?: string; headers?: Record<string, string> },
+): void {
   if (keep <= 0 || !isCacheable(url) || inflight.has(url)) return;
   if (loadIndex()[url]) return;
   if (!existsSync(OFFLINE_DIR)) mkdirSync(OFFLINE_DIR, { recursive: true });
   inflight.add(url);
+  if (resolved?.stream) {
+    const file = join(OFFLINE_DIR, `${youtubeId(url)}.${resolved.ext ?? "webm"}`);
+    void downloadDirect(resolved.stream, file, resolved.headers).then((ok) => {
+      inflight.delete(url);
+      if (ok) register(url, file, keep);
+    });
+    return;
+  }
   const proc = spawn(
     ytDlpCommand(),
     [
@@ -124,10 +181,7 @@ export function cacheInBackground(url: string, keep: number): void {
     inflight.delete(url);
     const file = out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).pop();
     if (code !== 0 || !file || !existsSync(file)) return;
-    const index = loadIndex();
-    index[url] = { file, at: Date.now() };
-    evict(index, keep);
-    saveIndex(index);
+    register(url, file, keep);
   });
 }
 

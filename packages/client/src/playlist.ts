@@ -181,10 +181,35 @@ export async function fetchPlaylist(
   return { name, entries: parseEntries(out) };
 }
 
+/**
+ * Title + channel of a YouTube video from its oEmbed endpoint: one tiny JSON
+ * request instead of a full yt-dlp extraction, and it keeps working while
+ * YouTube rate-limits extraction ("429 / confirm you're not a bot"). It has
+ * no duration; that's filled in the first time the track plays (cacheMeta).
+ */
+async function fetchOEmbed(
+  url: string,
+): Promise<{ title: string; duration: number; artist?: string } | null> {
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { title?: string; author_name?: string };
+    if (!data.title) return null;
+    // duration 0 = "unknown for now" (the list just doesn't show one).
+    return { title: data.title, duration: 0, artist: data.author_name || undefined };
+  } catch {
+    return null;
+  }
+}
+
 /** Fetches a single URL's title, duration and artist (no download). */
 async function fetchMeta(
   url: string,
 ): Promise<{ title: string; duration: number; artist?: string } | null> {
+  if (youtubeId(url)) return fetchOEmbed(url);
   const out = await ytDlpStdout([
     "--no-warnings",
     "--no-playlist",
@@ -396,10 +421,47 @@ export function pruneTitleCache(): void {
   if (changed) saveCache(cache);
 }
 
+/**
+ * Stores full metadata the player already got for free while loading a track
+ * (title/duration/artist from mpv's yt-dlp run), so the list never has to
+ * fetch it separately. Returns the updated entry, or null if nothing changed.
+ */
+export function cacheMeta(
+  url: string,
+  meta: { title?: string; duration?: number; artist?: string },
+): { title: string; duration: number; artist: string } | null {
+  if (isLocalFile(url)) return null;
+  const cache = loadCache();
+  const prev = cache[url];
+  const title = meta.title ?? entryTitle(prev);
+  if (!title) return null;
+  const next = {
+    title,
+    duration: meta.duration ?? entryDuration(prev) ?? 0,
+    artist: meta.artist ?? entryArtist(prev) ?? "",
+  };
+  if (
+    typeof prev === "object" &&
+    prev.title === next.title &&
+    prev.duration === next.duration &&
+    prev.artist === next.artist
+  ) {
+    return null;
+  }
+  cache[url] = next;
+  saveCache(cache);
+  return next;
+}
+
 /** Stores known titles in the cache (e.g. from an import or a search). */
 export function cacheTitles(items: { url: string; title: string }[]): void {
   const cache = loadCache();
-  for (const it of items) if (it.url && it.title) cache[it.url] = it.title;
+  for (const it of items) {
+    if (!it.url || !it.title) continue;
+    // Keep a full entry (duration/artist) — overwriting it would force a refetch.
+    const prev = cache[it.url];
+    cache[it.url] = typeof prev === "object" ? { ...prev, title: it.title } : it.title;
+  }
   saveCache(cache);
 }
 

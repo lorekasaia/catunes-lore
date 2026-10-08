@@ -54,12 +54,55 @@ export interface PlayerState {
 
 type MpvCommand = { command: unknown[]; request_id?: number };
 
+/**
+ * What mpv's ytdl_hook already resolved for the current track: the direct
+ * media URL plus metadata. Reusing it (instead of running yt-dlp again for
+ * the visualizer, the title cache or the offline cache) means ONE YouTube
+ * extraction per track — fewer requests, so fewer "429 / not a bot" blocks.
+ */
+export interface ResolvedTrack {
+  url: string; // the track's identity (what was passed to load())
+  stream: string | null; // direct media URL (null if unknown or not a single URL)
+  ext?: string; // container of the stream, e.g. "webm" / "m4a"
+  headers?: Record<string, string>; // HTTP headers yt-dlp says the stream needs
+  title?: string;
+  duration?: number;
+  artist?: string;
+}
+
+/** Pure helper: turns ytdl_hook's yt-dlp JSON into a ResolvedTrack. */
+export function parseYtdlJson(url: string, stdout: string, fallbackStream: string | null): ResolvedTrack {
+  let info: Record<string, unknown> = {};
+  try {
+    info = JSON.parse(stdout);
+  } catch {
+    // no JSON: keep only what mpv told us directly
+  }
+  const str = (v: unknown) => (typeof v === "string" && v && v !== "NA" ? v : undefined);
+  const direct = str(info.url);
+  const fallback = fallbackStream && /^https?:\/\//i.test(fallbackStream) ? fallbackStream : null;
+  const headers =
+    info.http_headers && typeof info.http_headers === "object"
+      ? (info.http_headers as Record<string, string>)
+      : undefined;
+  return {
+    url,
+    stream: direct ?? fallback,
+    ext: str(info.ext),
+    headers,
+    title: str(info.title),
+    duration: typeof info.duration === "number" && info.duration > 0 ? info.duration : undefined,
+    artist: str(info.uploader) ?? str(info.channel),
+  };
+}
+
 export class Player extends EventEmitter {
   private proc: ChildProcess | null = null;
   private socket: Socket | null = null;
   private socketPath: string;
   private reqId = 1;
   private buffer = "";
+  private pending = new Map<number, (data: unknown) => void>();
 
   state: PlayerState = {
     url: null,
@@ -100,6 +143,8 @@ export class Player extends EventEmitter {
         "--no-terminal",
         "--really-quiet",
         `--volume=${this.state.volume}`,
+        // Audio only: less data, and a single direct URL we can reuse.
+        "--ytdl-format=bestaudio/best",
         `--input-ipc-server=${this.socketPath}`,
       ],
       { stdio: "ignore", env },
@@ -145,8 +190,14 @@ export class Player extends EventEmitter {
       if (!line) continue;
       try {
         const msg = JSON.parse(line);
-        if (msg.event === "property-change") {
+        if (msg.request_id && this.pending.has(msg.request_id)) {
+          const done = this.pending.get(msg.request_id)!;
+          this.pending.delete(msg.request_id);
+          done(msg.error === "success" ? msg.data : undefined);
+        } else if (msg.event === "property-change") {
           this.onProperty(msg.name, msg.data);
+        } else if (msg.event === "file-loaded") {
+          void this.emitResolved();
         } else if (msg.event === "end-file") {
           // reason: "eof" (finished), "stop"/"quit" (we triggered it), "error"
           this.emit("ended", msg.reason as string, msg.file_error as
@@ -183,6 +234,42 @@ export class Player extends EventEmitter {
   private send(cmd: MpvCommand) {
     if (!this.socket) return;
     this.socket.write(JSON.stringify(cmd) + "\n");
+  }
+
+  /** Reads a property; resolves undefined if it's unavailable (or mpv is slow). */
+  private getProperty(name: string, timeoutMs = 2000): Promise<unknown> {
+    return new Promise((resolve) => {
+      if (!this.socket) return resolve(undefined);
+      // Ids from 1000 up so they never collide with observe_property ids.
+      const id = 1000 + this.reqId++;
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        resolve(undefined);
+      }, timeoutMs);
+      this.pending.set(id, (data) => {
+        clearTimeout(timer);
+        resolve(data);
+      });
+      this.send({ command: ["get_property", name], request_id: id });
+    });
+  }
+
+  /** On file-loaded: tells listeners what mpv's ytdl_hook resolved ("resolved"). */
+  private async emitResolved() {
+    const url = this.state.url;
+    if (!url) return;
+    const [stream, ytdl] = await Promise.all([
+      this.getProperty("stream-open-filename"),
+      // Set by mpv's ytdl_hook (mpv >= 0.36): the raw yt-dlp result.
+      this.getProperty("user-data/mpv/ytdl/json-subprocess-result"),
+    ]);
+    if (this.state.url !== url) return; // the track changed meanwhile
+    const stdout =
+      ytdl && typeof ytdl === "object" && typeof (ytdl as { stdout?: unknown }).stdout === "string"
+        ? (ytdl as { stdout: string }).stdout
+        : "";
+    const resolved = parseYtdlJson(url, stdout, typeof stream === "string" ? stream : null);
+    this.emit("resolved", resolved);
   }
 
   private observe(property: string, id: number) {
