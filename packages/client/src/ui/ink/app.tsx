@@ -59,7 +59,8 @@ const SPECTRUM_COLS = BANDS;
 const SEARCH_PRESETS = [10, 20, 30, 50, 100];
 // Sleep timer choices (minutes; -1 = "at the end of this track").
 const SLEEP_PRESETS = [0, 15, 30, 45, 60, 90, -1];
-const SLEEP_FADE_S = 30; // the volume fades out over the timer's last 30s
+const SLEEP_FADE_S = 30;
+const MAX_FAILED_SKIPS = 3; // consecutive unplayable tracks before we stop trying // the volume fades out over the timer's last 30s
 const CROSSFADE_PRESETS = [0, 2, 4, 6, 8, 10]; // seconds
 const OFFLINE_PRESETS = [0, 1, 5, 10, 25, 50]; // tracks kept for offline play
 // Theme picker: extra actions listed after the theme names.
@@ -928,8 +929,8 @@ function App({
   };
   // Short status message shown in the footer for a few seconds.
   const toastRef = useRef<{ text: string; until: number }>({ text: "", until: 0 });
-  const toast = (text: string) => {
-    toastRef.current = { text, until: Date.now() + 2500 };
+  const toast = (text: string, ms = 2500) => {
+    toastRef.current = { text, until: Date.now() + ms };
   };
   // Sleep timer: a deadline (epoch ms) or "stop after this track".
   const sleepRef = useRef<{ at: number | null; endOfTrack: boolean }>({
@@ -1090,9 +1091,21 @@ function App({
         }
         advance(true);
       } else if (r === "error") {
-        // Skip an unavailable track, but stop if the whole list is failing.
+        if (!player.state.url) return; // we already stopped
+        // The analyzer's own yt-dlp would hit the same wall; don't let it try.
+        analyzer.stop();
         errRef.current++;
-        if (errRef.current <= tracks.length) advance(false);
+        // Skip an unavailable track, but give up after a few in a row: when
+        // YouTube is blocking us (HTTP 429), every retry makes it worse.
+        if (errRef.current >= MAX_FAILED_SKIPS || errRef.current > tracks.length) {
+          errRef.current = 0;
+          player.stop();
+          toast(t("ui.allFailed"), 20_000);
+          return;
+        }
+        const failed = tracks.find((tr) => tr.url === player.state.url);
+        toast(t("ui.cantPlay", { title: failed?.title ?? player.state.url ?? "" }), 4000);
+        advance(false);
       }
     };
     player.on("state", onState);
@@ -1153,7 +1166,9 @@ function App({
     const s = player.state;
     let gain = 1;
     const cf = crossfadeRef.current;
-    if (cf > 0 && s.url && !s.paused) {
+    // Only once the file actually opened: a track that never loads must not
+    // leave the volume stuck at 0.
+    if (cf > 0 && s.url && !s.paused && (s.duration > 0 || s.position > 0)) {
       gain = Math.min(gain, Math.max(0, s.position) / cf);
       // Fade out only on tracks with a known length (not live radio).
       if (s.duration > cf * 2) {

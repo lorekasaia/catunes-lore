@@ -90,7 +90,8 @@ CONTROLS (interface):
     "ui.emptyHint": "Press / to search or a to add a track",
     "ui.resolving": "resolving",
     "ui.cantPlay": "⚠ Can't play: {title} — skipping",
-    "ui.allFailed": "⚠ No track could be played (check your connection?)",
+    "ui.allFailed":
+      "⚠ Several tracks in a row couldn't play — stopped. Check your connection; if it's YouTube, it may be blocking you for a while (too many requests). Radios still work.",
     "ui.playlist": " PLAYLIST · {n} tracks ",
     "ui.addLabel": " Add track ",
     "ui.addPrompt": "Paste a URL (YouTube, radio, stream) and press Enter:",
@@ -325,7 +326,8 @@ CONTROLES (interfaz):
     "ui.emptyHint": "Pulsa / para buscar o a para anadir",
     "ui.resolving": "resolviendo",
     "ui.cantPlay": "⚠ No se puede reproducir: {title} — saltando",
-    "ui.allFailed": "⚠ No se pudo reproducir nada (¿revisa tu conexion?)",
+    "ui.allFailed":
+      "⚠ Varias canciones seguidas no se pudieron reproducir — detenido. Revisa tu conexión; si es YouTube, puede estar bloqueándote un rato (demasiadas peticiones). Las radios siguen funcionando.",
     "ui.playlist": " PLAYLIST · {n} temas ",
     "ui.addLabel": " Anadir cancion ",
     "ui.addPrompt": "Pega una URL (YouTube, radio, stream) y pulsa Enter:",
