@@ -83,6 +83,21 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `c` | Right panel: the **cat** (default) → the track's **cover art** (coloured half-blocks) → **both** side by side (wide windows). |
 | `b` | **Mini player** — 3 lines, for small panes (also automatic when the terminal is short). |
 
+### The cat ᓚᘏᗢ
+
+The mascot reacts to everything. With **sound detection** on it dresses for
+the genre (shades for rock, horns for metal, a cap for hip hop, LED eyes for
+electronic, a beret for jazz, monocle + baton for classical, maracas for
+Latin, a cowboy hat for country, a beanie for reggae, a bow for pop), makes
+the mood's face (smiles, tears, blush, frowns) and **dances on the detected
+BPM**; it holds a guitar or taps the drums when it hears them. It hearts your
+favorites, nods at the queue, follows seeks, gets dizzy on errors, covers its
+ears on mute, yawns on the sleep timer, falls asleep after a long pause, says
+hello when catunes opens, wears a night cap at night, a Santa hat in December
+and a witch hat at Halloween, licks its paw when left alone and pounces on
+the last dot of the progress aura. **Settings → Mascot**: classic, tabby,
+black, calico, siamese, rainbow — or a dog or a bunny. Phones get a mini cat.
+
 On narrow screens (phones in portrait) the layout goes **compact** automatically:
 one list at a time (Tab switches), no side panel. **Settings → Colours from the
 cover** tints the whole UI with each track's cover.

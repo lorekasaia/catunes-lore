@@ -83,6 +83,22 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `c` | Panel derecho: el **gato** (por defecto) → la **portada** de la canción (medios bloques de colores) → **los dos** juntos (ventanas anchas). |
 | `b` | **Mini reproductor** — 3 líneas, para paneles pequeños (también automático si la terminal es baja). |
 
+### El gato ᓚᘏᗢ
+
+La mascota reacciona a todo. Con **Detectar sonidos** activado se viste según
+el género (gafas para rock, cuernos para metal, gorra para hip hop, ojos LED
+para electrónica, boina para jazz, monóculo y batuta para clásica, maracas
+para latina, sombrero vaquero para country, gorro para reggae, lazo para pop),
+pone la cara del ánimo (sonrisa, lágrima, rubor, ceño) y **baila al BPM
+detectado**; sostiene una guitarra o tamborilea si las oye. Pone ojos de
+corazón con tus favoritos, asiente con la cola, sigue los saltos, se marea con
+los errores, se tapa las orejas en silencio, bosteza con el temporizador, se
+duerme tras una pausa larga, saluda al abrir catunes, usa gorro de dormir de
+noche, gorro navideño en diciembre y de bruja en Halloween, se lame la pata si
+lo dejas solo y salta sobre el último punto del aura. **Ajustes → Mascota**:
+clásico, atigrado, negro, calicó, siamés, arcoíris — o un perro o un conejo.
+En el celular aparece un gato mini.
+
 En pantallas estrechas (celular en vertical) el diseño pasa a **compacto** solo:
 una lista a la vez (Tab cambia), sin panel lateral. **Ajustes → Colores de la
 portada** tiñe toda la interfaz con la portada de cada canción.

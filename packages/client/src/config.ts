@@ -135,6 +135,7 @@ export interface Settings {
   artPanel?: "cat" | "cover" | "both"; // right-hand panel: the cat, the track's cover, or both side by side
   coverColors?: boolean; // tint the UI with the playing track's cover colours
   miniMode?: boolean; // 3-line mini player
+  catSkin?: string; // the mascot's look: classic, tabby, black, calico, siamese, gradient, dog, bunny
   // Resume: last track + position within the last playlist.
   lastPlaylist?: string;
   lastUrl?: string;

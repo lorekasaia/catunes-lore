@@ -205,6 +205,8 @@ CONTROLS (interface):
     "ui.optUpdate": "Update catunes",
     "ui.optSounds": "Sound detection",
     "ui.optCoverColors": "Colours from the cover",
+    "ui.optSkin": "Mascot",
+    "keys.setSkin": "Mascot — fur (tabby, black, calico, siamese…) or dog / bunny",
     "cover.note":
       "Tints the whole interface with the colours of the playing track's cover (YouTube tracks). Your chosen theme comes back for tracks without a cover.",
     "viz.vuLevel": "level",
@@ -472,6 +474,8 @@ CONTROLES (interfaz):
     "ui.optUpdate": "Actualizar catunes",
     "ui.optSounds": "Detectar sonidos",
     "ui.optCoverColors": "Colores de la portada",
+    "ui.optSkin": "Mascota",
+    "keys.setSkin": "Mascota — pelaje (atigrado, negro, calicó, siamés…) o perro / conejo",
     "cover.note":
       "Tiñe toda la interfaz con los colores de la portada de la canción que suena (canciones de YouTube). Para las canciones sin portada vuelve tu tema elegido.",
     "viz.vuLevel": "nivel",

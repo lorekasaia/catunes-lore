@@ -326,6 +326,7 @@ const SPEECH = 0;
 
 export interface SoundTag {
   kind: Kind;
+  key: string; // stable English name (e.g. "rock"), whatever the UI language
   emoji: string;
   label: string;
   score: number;
@@ -347,7 +348,7 @@ export function tagsFromScores(scores: ArrayLike<number>, lang = getLocale()): S
       }
     }
     if (best < 0) continue;
-    tags.push({ kind: g.kind, emoji: g.emoji, label: g.members[best]![li], score: bestScore });
+    tags.push({ kind: g.kind, key: g.members[best]![0], emoji: g.emoji, label: g.members[best]![li], score: bestScore });
   }
   // Nothing musical or spoken going on (silence, noise): show nothing.
   if ((scores[MUSIC] ?? 0) + (scores[SPEECH] ?? 0) < 0.2) return [];

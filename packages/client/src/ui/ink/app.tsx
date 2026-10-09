@@ -73,6 +73,22 @@ import {
   mix,
 } from "./visuals.tsx";
 import { getCover, type Cover } from "../../cover.ts";
+import {
+  CAT_W,
+  CAT_H,
+  CAT_WALK,
+  catMascot,
+  catLook,
+  BigCat,
+  MiniCat,
+  MINI_W,
+  SKINS,
+  SKIN_NAMES,
+  type CatInput,
+  type CatLook,
+  type Reaction,
+  type Skin,
+} from "./cat.tsx";
 
 const SIDEBAR_W = 24;
 const SPECTRUM_COLS = BANDS;
@@ -210,181 +226,6 @@ function useTermSize() {
 
 // --- presentational pieces ---
 
-// --- Cat mascot (ᓚᘏᗢ) ---
-// Pacing cat used as a loading spinner; constant width so nothing jitters.
-const CAT_WALK = ["ᓚᘏᗢ   ", " ᓚᘏᗢ  ", "  ᓚᘏᗢ ", "   ᓚᘏᗢ", "  ᓚᘏᗢ ", " ᓚᘏᗢ  "];
-
-/** Mascot reflecting the player state; while playing the notes grow with the bass. */
-function catMascot(playing: boolean, paused: boolean, beat: number): string {
-  if (paused) return "ᓚᘏᗢ  zZ";
-  if (!playing) return "ᓚᘏᗢ";
-  const notes = (beat > 0.66 ? "♫♪♫" : beat > 0.33 ? "♪♫" : "♪").padEnd(3, " ");
-  return `ᓚᘏᗢ ${notes}`;
-}
-
-// --- Cat mascot (top-right, themed) ---
-// Block-art sitting cat with face, whiskers, arms and paws. The eyes react to
-// the player state/beat (and wink/scare on actions); a progress "aura" ring
-// fills clockwise around the cat as the track plays.
-const CAT_ROWS = [
-  "        ▄▀▄       ▄▀▄",
-  "       █   ▀▄▄▄▄▄▀   █",
-  null, // eye row (rendered with white eyeballs)
-  " ───  █       ▄       █  ───",
-  " ──    █    ▀▀▀▀▀    █   ──",
-  "        ▀▄▄▄▄▄▄▄▄▄▄▄▀",
-  "▄▄▄▄▄▄▄▄█   █   █   █▄▄▄▄▄▄▄▄",
-  "        ▀▄▄▄▀   ▀▄▄▄▀",
-] as const;
-const CAT_W = 29;
-const CAT_H = CAT_ROWS.length;
-
-function PixelCat({
-  mode,
-  beat,
-  frame,
-  ratio,
-  reaction,
-  muted,
-  shuffle,
-  repeat,
-}: {
-  mode: "play" | "pause" | "stop";
-  beat: number;
-  frame: number;
-  ratio: number;
-  reaction: "wink" | "scared" | "meow" | null;
-  muted: boolean;
-  shuffle: boolean;
-  repeat: "off" | "all" | "one";
-}) {
-  const accent = theme().accent;
-  const blink = frame % 28 < 2;
-  const strong = mode === "play" && beat > 0.45; // a beat hit
-  let pupil =
-    beat > 0.5
-      ? "●"
-      : ((look) => (look === 1 ? "◗" : look === 3 ? "◖" : "●"))(
-          Math.floor(frame / 7) % 4,
-        );
-  if (shuffle) pupil = "✦"; // excited on shuffle
-  if (repeat === "one") pupil = "@"; // dizzy on repeat-one
-  const base: "open" | "closed" | "wide" =
-    blink || mode === "pause" || mode === "stop"
-      ? "closed"
-      : strong
-        ? "wide"
-        : "open";
-  let left = base;
-  let right = base;
-  if (reaction === "wink") right = "closed";
-  else if (reaction === "scared") left = right = "wide";
-
-  // Animated, fixed-width body parts (so the aura frame never shifts).
-  const ears = muted ? "╲█╱" : strong ? "▀▄▀" : "▄▀▄"; // dance / cover ears
-  const mouth = strong ? "▄███▄" : "▀▀▀▀▀"; // sing on the beat
-  const paw = frame % 55 < 3 ? "▄▀▀▀▄" : "▀▄▄▄▀"; // an occasional paw flick (~5s)
-  const dyn: Record<number, string> = {
-    0: `        ${ears}       ${ears}`,
-    4: ` ──    █    ${mouth}    █   ──`,
-    7: `        ${paw}   ${paw}`,
-  };
-  // Speech bubble above the cat (reserved line; constant presence).
-  const cyc = (a: string[]) => a[Math.floor(frame / 5) % a.length]!;
-  const bubble = muted
-    ? "🙀 mute"
-    : reaction === "meow"
-      ? "meow!"
-      : mode === "play"
-        ? cyc(["  ♪  ", " ♪ ♫ ", " ♫ ♪ "])
-        : cyc(["  z  ", " z Z ", "z Z z"]);
-  const eye = (k: "open" | "closed" | "wide", key: string) =>
-    k === "closed" ? (
-      <Text key={key} color={accent}>
-        ‿
-      </Text>
-    ) : (
-      <Text key={key} color="#1b1b1b" backgroundColor="white">
-        {k === "wide" ? "◉" : pupil}
-      </Text>
-    );
-
-  // Progress aura: perimeter cells lit clockwise from the top-left corner,
-  // in a low→mid→high sweep (the theme's spectrum colors) so it glows
-  // instead of just lighting up a single flat color.
-  const total = 2 * CAT_W + 2 * CAT_H + 4;
-  const filled = Math.round(Math.max(0, Math.min(1, ratio)) * total);
-  const lit = (seq: number) => seq < filled;
-  const [auraLow, auraMid, auraHigh] = theme().spectrum;
-  const auraColor = (seq: number) => {
-    const third = total / 3;
-    return seq < third ? auraLow! : seq < 2 * third ? auraMid! : auraHigh!;
-  };
-  const hcell = (seq: number, key: number) => (
-    <Text key={key} color={lit(seq) ? auraColor(seq) : accent} dimColor={!lit(seq)}>
-      {lit(seq) ? "━" : "─"}
-    </Text>
-  );
-  const vcell = (seq: number) => (
-    <Text color={lit(seq) ? auraColor(seq) : accent} dimColor={!lit(seq)}>
-      {lit(seq) ? "┃" : "│"}
-    </Text>
-  );
-  const ccell = (seq: number, ch: string) => (
-    <Text color={lit(seq) ? auraColor(seq) : accent} dimColor={!lit(seq)}>
-      {ch}
-    </Text>
-  );
-  // Sequence indices (clockwise): TL=0, top 1..W, TR=W+1, right W+2..W+1+H,
-  // BR=W+2+H, bottom (R→L), BL=2W+3+H, left (B→T).
-  const rightSeq = (r: number) => CAT_W + 2 + r;
-  const leftSeq = (r: number) => 2 * CAT_W + 4 + CAT_H + (CAT_H - 1 - r);
-  const bottomSeq = (c: number) => CAT_W + 3 + CAT_H + (CAT_W - 1 - c);
-
-  const inner = (r: number) => {
-    if (r !== 2) {
-      const s = dyn[r] ?? CAT_ROWS[r]!;
-      return <Text color={accent}>{s.padEnd(CAT_W)}</Text>;
-    }
-    return (
-      <>
-        <Text color={accent}>{"      █  "}</Text>
-        {eye(left, "l")}
-        <Text color={accent}>{"         "}</Text>
-        {eye(right, "r")}
-        <Text color={accent}>{"  █      "}</Text>
-      </>
-    );
-  };
-
-  return (
-    <Box flexDirection="column">
-      <Box justifyContent="center">
-        <Text color={accent} bold>
-          {bubble}
-        </Text>
-      </Box>
-      <Box>
-        {ccell(0, "╭")}
-        {Array.from({ length: CAT_W }, (_, c) => hcell(1 + c, c))}
-        {ccell(CAT_W + 1, "╮")}
-      </Box>
-      {CAT_ROWS.map((_, r) => (
-        <Box key={r}>
-          {vcell(leftSeq(r))}
-          {inner(r)}
-          {vcell(rightSeq(r))}
-        </Box>
-      ))}
-      <Box>
-        {ccell(2 * CAT_W + 3 + CAT_H, "╰")}
-        {Array.from({ length: CAT_W }, (_, c) => hcell(bottomSeq(c), c))}
-        {ccell(CAT_W + 2 + CAT_H, "╯")}
-      </Box>
-    </Box>
-  );
-}
-
 function NowPlaying({
   state,
   spec,
@@ -398,7 +239,8 @@ function NowPlaying({
   repeat,
   width,
   artist,
-  reaction,
+  look,
+  skin,
   sounds,
   art,
   cover,
@@ -415,7 +257,8 @@ function NowPlaying({
   repeat: "off" | "all" | "one";
   width: number;
   artist?: string;
-  reaction: "wink" | "scared" | "meow" | null;
+  look: CatLook; // what the mascot is doing right now (cat.tsx)
+  skin: Skin;
   sounds: { tags: SoundTag[]; bpm: number | null } | null; // null = detection off
   art: "cat" | "cover" | "both" | "none"; // right-hand panel(s)
   cover: Cover | null;
@@ -442,7 +285,9 @@ function NowPlaying({
   const cat = loading
     ? CAT_WALK[frame % CAT_WALK.length]!
     : catMascot(!!state.url && !state.paused, state.paused, bass);
-  const catMode: "play" | "pause" | "stop" = state.paused ? "pause" : state.url ? "play" : "stop";
+  // Narrow screens: a mini cat next to the visualizer instead of the big one.
+  const miniCat = compact && innerW >= 40;
+  const vizW = miniCat ? innerW - MINI_W - 1 : innerW;
   const rightLen = stateText.length + (compact ? 6 : 18);
   // Little note bubble over the cover (the big cat has its own).
   const bubble = !state.url || state.paused ? "z Z" : ["  ♪  ", " ♪ ♫ ", " ♫ ♪ "][Math.floor(frame / 5) % 3]!;
@@ -475,17 +320,24 @@ function NowPlaying({
           ) : null}
         </Box>
         {chips && compact ? <Box>{chips}</Box> : null}
-        <Visualizer
-          mode={mode}
-          spec={spec}
-          peaks={peaks}
-          wave={wave}
-          history={history}
-          frame={frame}
-          playing={!!state.url && !state.paused}
-          width={innerW}
-          vuLabels={[t("viz.vuLevel"), t("viz.vuLow"), t("viz.vuMid"), t("viz.vuHigh")]}
-        />
+        <Box>
+          <Visualizer
+            mode={mode}
+            spec={spec}
+            peaks={peaks}
+            wave={wave}
+            history={history}
+            frame={frame}
+            playing={!!state.url && !state.paused}
+            width={vizW}
+            vuLabels={[t("viz.vuLevel"), t("viz.vuLow"), t("viz.vuMid"), t("viz.vuHigh")]}
+          />
+          {miniCat ? (
+            <Box marginLeft={1}>
+              <MiniCat look={look} skin={skin} frame={frame} />
+            </Box>
+          ) : null}
+        </Box>
         <Box marginTop={1}>
           <SmoothBar ratio={ratio} width={progW} />
           <Text dimColor> {timeText}</Text>
@@ -512,16 +364,7 @@ function NowPlaying({
       ) : null}
       {art === "cat" || art === "both" ? (
         <Box flexShrink={0} marginLeft={2} alignItems="center" justifyContent="center">
-          <PixelCat
-              mode={catMode}
-              beat={bass}
-              frame={frame}
-              ratio={ratio}
-              reaction={reaction}
-              muted={state.volume === 0}
-            shuffle={shuffle}
-            repeat={repeat}
-          />
+          <BigCat look={look} skin={skin} frame={frame} ratio={ratio} />
         </Box>
       ) : null}
     </Box>
@@ -749,7 +592,8 @@ type Overlay =
   | { kind: "themeImport" }
   | { kind: "message"; title: string; text: string }
   | { kind: "sounds" }
-  | { kind: "coverColors" };
+  | { kind: "coverColors" }
+  | { kind: "skin" };
 
 // Settings menu entries, in order: [i18n label key, what it opens].
 const SETTINGS_ITEMS: [string, string][] = [
@@ -761,6 +605,7 @@ const SETTINGS_ITEMS: [string, string][] = [
   ["ui.optOffline", "offline"],
   ["ui.optSounds", "sounds"],
   ["ui.optCoverColors", "coverColors"],
+  ["ui.optSkin", "skin"],
   ["ui.optSleep", "sleep"],
   ["ui.optHistory", "history"],
   ["ui.optUpdate", "update"],
@@ -812,6 +657,7 @@ const HELP_ROWS: [string, string][] = [
   ["·", "keys.setOffline"],
   ["·", "keys.setSounds"],
   ["·", "keys.setCoverColors"],
+  ["·", "keys.setSkin"],
   ["·", "keys.setUpdate"],
   ["·", "keys.setLang"],
   ["", "keys.secApp"],
@@ -891,13 +737,21 @@ function App({
   const waveRef = useRef<number[]>(new Array(WAVE_POINTS).fill(0));
   const inflight = useRef(new Set<string>()); // URLs whose title is resolving
   // Transient cat reaction (wink/scared); cleared once the deadline frame passes.
-  const reactRef = useRef<{ type: "wink" | "scared" | "meow"; until: number }>({
+  const reactRef = useRef<{ type: Reaction; until: number }>({
     type: "wink",
     until: 0,
   });
-  const react = (type: "wink" | "scared" | "meow") => {
-    reactRef.current = { type, until: frame + 10 }; // ~0.9s
+  const react = (type: Reaction, ms = 1100) => {
+    reactRef.current = { type, until: Date.now() + ms };
   };
+  // For the mascot: when catunes opened, the last key press, since when paused.
+  const startedAt = useRef(Date.now());
+  const lastKeyAt = useRef(Date.now());
+  const pausedSince = useRef<number | null>(null);
+  const [skin, setSkin] = useState<Skin>(() => {
+    const saved = loadSettings().catSkin as Skin | undefined;
+    return saved && (SKINS as readonly string[]).includes(saved) ? saved : "classic";
+  });
   // Short status message shown in the footer for a few seconds.
   const toastRef = useRef<{ text: string; until: number }>({ text: "", until: 0 });
   const toast = (text: string, ms = 2500) => {
@@ -1016,13 +870,13 @@ function App({
     setFavs(loadFavorites());
     setPlaylists(listPlaylists());
     if (activePlaylist() === FAVORITES_PLAYLIST) reload();
-    react(nowFav ? "wink" : "scared");
+    react(nowFav ? "heart" : "scared", nowFav ? 1600 : 1100);
     toast(nowFav ? t("fav.added") : t("fav.removed"));
   };
 
   const enqueue = (tr: Track) => {
     setQueue((q) => [...q, tr]);
-    react("wink");
+    react("nod");
     toast(t("queue.added", { title: tr.title }));
   };
 
@@ -1054,6 +908,7 @@ function App({
       const paused = player.state.paused;
       if (paused !== prevPaused.current) {
         prevPaused.current = paused;
+        pausedSince.current = paused ? Date.now() : null;
         if (paused) analyzer.pause();
         else analyzer.resume();
       }
@@ -1084,6 +939,7 @@ function App({
           toast(t("ui.allFailed"), 20_000);
           return;
         }
+        react("dizzy", 1800);
         const failed = tracks.find((tr) => tr.url === player.state.url);
         toast(t("ui.cantPlay", { title: failed?.title ?? player.state.url ?? "" }), 4000);
         advance(false);
@@ -1439,6 +1295,7 @@ function App({
 
   // --- input handling ---
   useInput((ch, key) => {
+    lastKeyAt.current = Date.now();
     // Overlays first.
     if (overlay.kind === "loading") return;
 
@@ -1568,6 +1425,7 @@ function App({
       offline: OFFLINE_PRESETS.length,
       sounds: soundModelsReady() ? 3 : 2,
       coverColors: 2,
+      skin: SKINS.length,
       history: overlay.kind === "history" ? overlay.entries.length : 0,
       lang: SUPPORTED_LOCALES.length,
       playlists: playlists.length,
@@ -1626,6 +1484,7 @@ function App({
       const d = key.leftArrow ? -5 : 5;
       player.seek(d);
       analyzer.seek(Math.max(0, player.state.position + d)); // keep the visualizer in step
+      react(d < 0 ? "lookLeft" : "lookRight", 700);
       return;
     }
     if (ch === "n") return advance(false);
@@ -1644,8 +1503,14 @@ function App({
     if (ch === "+" || ch === "=") return setVol(userVolRef.current + 5);
     if (ch === "-") return setVol(userVolRef.current - 5);
     if (ch === "/") return openOverlay({ kind: "searchInput" });
-    if (ch === "z" && focus === "tracks") return void doSimilar();
-    if (ch === "y") return openLyrics();
+    if (ch === "z" && focus === "tracks") {
+      react("sniff", 1600);
+      return void doSimilar();
+    }
+    if (ch === "y") {
+      react("sing", 2000);
+      return openLyrics();
+    }
     if (ch === "a")
       return openOverlay({
         kind: "addInput",
@@ -1719,6 +1584,7 @@ function App({
     if (o.kind === "crossfade") return Math.max(0, CROSSFADE_PRESETS.indexOf(crossfade));
     if (o.kind === "sounds") return soundsOn ? 1 : 0;
     if (o.kind === "coverColors") return coverColors ? 1 : 0;
+    if (o.kind === "skin") return Math.max(0, SKINS.indexOf(skin));
     if (o.kind === "offline")
       return Math.max(0, OFFLINE_PRESETS.indexOf(loadSettings().offlineCache ?? 0));
     if (o.kind === "theme") return Math.max(0, listThemes().indexOf(activeThemeName()));
@@ -1775,6 +1641,13 @@ function App({
       trimCache(n); // shrinking (or turning off) frees the space right away
       // The current track gets cached the next time it loads (from mpv's stream).
       toast(n > 0 ? t("offline.on", { n }) : t("offline.off"));
+      return closeOverlay();
+    }
+    if (overlay.kind === "skin") {
+      const next = SKINS[sel] ?? "classic";
+      setSkin(next);
+      saveSettings({ catSkin: next });
+      react("meow");
       return closeOverlay();
     }
     if (overlay.kind === "coverColors") {
@@ -1982,6 +1855,51 @@ function App({
     );
   }
   const pickMax = Math.max(3, rows - 9);
+  const lang = getLocale() === "es" ? "es" : "en";
+  const catInput: CatInput = {
+    mode: state.paused ? "pause" : state.url ? "play" : "stop",
+    loading: !!state.url && state.position === 0 && !state.paused,
+    beat: spec.length >= 3 ? (spec[0]! + spec[1]! + spec[2]!) / (3 * SPECTRUM_H) : 0,
+    frame,
+    now: Date.now(),
+    ratio: state.duration > 0 ? state.position / state.duration : 0,
+    reaction: Date.now() < reactRef.current.until ? reactRef.current.type : null,
+    muted: state.volume === 0,
+    volume: state.volume,
+    shuffle,
+    repeat,
+    tags: soundsOn ? soundTags : [],
+    bpm: soundsOn ? bpm : null,
+    pausedForMs: pausedSince.current ? Date.now() - pausedSince.current : 0,
+    idleMs: Date.now() - lastKeyAt.current,
+    sinceStartMs: Date.now() - startedAt.current,
+    sleepTimer: sleepRef.current.at
+      ? sleepRef.current.at - Date.now() < 120_000
+        ? "soon"
+        : "on"
+      : sleepRef.current.endOfTrack
+        ? "on"
+        : "off",
+    skin,
+    lang,
+  };
+  const look = catLook(catInput);
+  if (overlay.kind === "skin") {
+    const previewSkin = SKINS[sel] ?? skin;
+    const previewLook = catLook({ ...catInput, skin: previewSkin, reaction: null, sinceStartMs: 99_999 });
+    return (
+      <Modal title={t("ui.optSkin")} cols={cols} rows={rows} width={Math.min(cols - 4, 70)}>
+        <Box>
+          <Box flexDirection="column" flexGrow={1}>
+            <PickList selected={sel} maxVisible={pickMax} options={SKINS.map((k) => SKIN_NAMES[k][lang === "es" ? 1 : 0] + (k === skin ? "  ✓" : ""))} />
+          </Box>
+          <Box marginLeft={2}>
+            <MiniCat look={previewLook} skin={previewSkin} frame={frame} />
+          </Box>
+        </Box>
+      </Modal>
+    );
+  }
   const wideW = Math.min(cols - 6, 96);
   if (overlay.kind === "sleep") {
     const left = sleepRef.current.at ? Math.ceil((sleepRef.current.at - Date.now()) / 60_000) : 0;
@@ -2220,7 +2138,7 @@ function App({
   const sleepTag = sleepLeft ? `⏾ ${sleepLeft}m · ` : sleepRef.current.endOfTrack ? "⏾ ⏹ · " : "";
   const queueTag = queue.length ? `⏭ ${queue.length} · ` : "";
   const toastText = Date.now() < toastRef.current.until ? toastRef.current.text : "";
-  const reaction = frame < reactRef.current.until ? reactRef.current.type : null;
+  const reaction = Date.now() < reactRef.current.until ? reactRef.current.type : null;
 
   // Contextual one-line hints instead of every key at once (? lists them all).
   const hint = filtering
@@ -2311,7 +2229,8 @@ function App({
         width={cols}
         artist={artistNow}
         sounds={soundsOn && state.url ? { tags: soundTags, bpm } : null}
-        reaction={reaction}
+        look={look}
+        skin={skin}
         history={historyRef.current}
         art={art}
         cover={cover}
