@@ -79,6 +79,8 @@ const SPECTRUM_COLS = BANDS;
 // Below this width the layout goes compact (phones in portrait): one list
 // panel at a time (Tab switches) and no cat/cover panel.
 const COMPACT_COLS = 72;
+// Room needed to show the cover AND the cat side by side.
+const BOTH_ART_COLS = 120;
 // Fewer rows than this (or `b`): the 3-line mini player.
 const MINI_ROWS = 16;
 // Animated "now playing" equalizer icon in the track list (2 cells wide).
@@ -415,7 +417,7 @@ function NowPlaying({
   artist?: string;
   reaction: "wink" | "scared" | "meow" | null;
   sounds: { tags: SoundTag[]; bpm: number | null } | null; // null = detection off
-  art: "cat" | "cover" | "none"; // right-hand panel
+  art: "cat" | "cover" | "both" | "none"; // right-hand panel(s)
   cover: Cover | null;
 }) {
   const accent = theme().accent;
@@ -431,7 +433,7 @@ function NowPlaying({
   const repIcon = repeat === "one" ? "🔂" : "🔁";
   const ratio = state.duration > 0 ? state.position / state.duration : 0;
   // Inner width of the left column: border (2) + padding (2) + the art panel.
-  const artW = art === "none" ? 0 : CAT_W + 2 + 2;
+  const artW = art === "none" ? 0 : (CAT_W + 2 + 2) * (art === "both" ? 2 : 1);
   const innerW = Math.max(12, width - 4 - artW);
   const remaining = state.duration > 0 ? `  -${fmtTime(state.duration - state.position)}` : "";
   const timeText = `${fmtTime(state.position)} / ${dur}${compact ? "" : remaining}`;
@@ -494,33 +496,34 @@ function NowPlaying({
           <Text dimColor> {Math.round(state.volume)}%</Text>
         </Box>
       </Box>
-      {art === "none" ? null : (
+      {(art === "cover" || art === "both") && cover ? (
         <Box flexShrink={0} marginLeft={2} alignItems="center" justifyContent="center">
-          {art === "cover" && cover ? (
-            <Box flexDirection="column">
-              <Box justifyContent="center">
-                <Text color={accent} bold>
-                  {bubble}
-                </Text>
-              </Box>
-              <Box borderStyle="round" borderColor={accent}>
-                <CoverArt cover={cover} />
-              </Box>
+          <Box flexDirection="column">
+            <Box justifyContent="center">
+              <Text color={accent} bold>
+                {bubble}
+              </Text>
             </Box>
-          ) : (
-            <PixelCat
+            <Box borderStyle="round" borderColor={accent}>
+              <CoverArt cover={cover} />
+            </Box>
+          </Box>
+        </Box>
+      ) : null}
+      {art === "cat" || art === "both" ? (
+        <Box flexShrink={0} marginLeft={2} alignItems="center" justifyContent="center">
+          <PixelCat
               mode={catMode}
               beat={bass}
               frame={frame}
               ratio={ratio}
               reaction={reaction}
               muted={state.volume === 0}
-              shuffle={shuffle}
-              repeat={repeat}
-            />
-          )}
+            shuffle={shuffle}
+            repeat={repeat}
+          />
         </Box>
-      )}
+      ) : null}
     </Box>
   );
 }
@@ -867,7 +870,8 @@ function App({
   const taggerRef = useRef<SoundTagger | null>(null);
   // Visuals: cover art (or the cat) on the right, its colours, mini player.
   const [cover, setCover] = useState<Cover | null>(null);
-  const [artPref, setArtPref] = useState<"cover" | "cat">(loadSettings().artPanel ?? "cover");
+  // The cat is the default; the cover is opt-in with `c`.
+  const [artPref, setArtPref] = useState<"cat" | "cover" | "both">(loadSettings().artPanel ?? "cat");
   const [coverColors, setCoverColors] = useState<boolean>(loadSettings().coverColors ?? false);
   const [miniMode, setMiniMode] = useState<boolean>(loadSettings().miniMode ?? false);
   const historyRef = useRef<number[][]>([]); // recent spectra (waterfall mode)
@@ -1660,9 +1664,10 @@ function App({
     if (ch === "l" || ch === "*") return toggleFav();
     if (ch === "U") return openOverlay({ kind: "queue" });
     if (ch === "c") {
-      const next = artPref === "cover" ? "cat" : "cover";
+      const next = artPref === "cat" ? "cover" : artPref === "cover" ? "both" : "cat";
       setArtPref(next);
       saveSettings({ artPanel: next });
+      toast(t(`art.${next}`));
       return;
     }
     if (ch === "b") {
@@ -2143,7 +2148,16 @@ function App({
 
   const loading = !!state.url && state.position === 0 && !state.paused;
   const compact = cols < COMPACT_COLS;
-  const art: "cat" | "cover" | "none" = compact ? "none" : artPref === "cover" && cover ? "cover" : "cat";
+  // No cover (radio, local file, still loading) or too narrow for both: the cat.
+  const art: "cat" | "cover" | "both" | "none" = compact
+    ? "none"
+    : !cover || artPref === "cat"
+      ? "cat"
+      : artPref === "cover"
+        ? "cover"
+        : cols >= BOTH_ART_COLS
+          ? "both"
+          : "cat";
   const zebraBg = mix(accent, "#000000", 0.86); // faint stripe on every other row
 
   const active = activePlaylist();

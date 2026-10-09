@@ -80,7 +80,7 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `l` / `*` | **Favorite** the selected track; they collect in the `★ Favorites` list. |
 | `u` / `U` | **Queue** a track to play next (also works on search results) / view the queue. |
 | `h` | **History** of what played recently; Enter plays it again. |
-| `c` | Right panel: the track's **cover art** (drawn with coloured half-blocks) or the cat. |
+| `c` | Right panel: the **cat** (default) → the track's **cover art** (coloured half-blocks) → **both** side by side (wide windows). |
 | `b` | **Mini player** — 3 lines, for small panes (also automatic when the terminal is short). |
 
 On narrow screens (phones in portrait) the layout goes **compact** automatically:

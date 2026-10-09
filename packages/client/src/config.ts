@@ -132,7 +132,7 @@ export interface Settings {
   crossfade?: number; // seconds of fade-out/fade-in between tracks (0 = off)
   offlineCache?: number; // how many recent tracks to keep for offline play (0 = off)
   soundDetect?: boolean; // show what the song contains (voices, instruments, genre, BPM)
-  artPanel?: "cover" | "cat"; // right-hand panel: the track's cover (when it has one) or the cat
+  artPanel?: "cat" | "cover" | "both"; // right-hand panel: the cat, the track's cover, or both side by side
   coverColors?: boolean; // tint the UI with the playing track's cover colours
   miniMode?: boolean; // 3-line mini player
   // Resume: last track + position within the last playlist.

@@ -80,7 +80,7 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `l` / `*` | **Favorito** la canción seleccionada; se juntan en la lista `★ Favorites`. |
 | `u` / `U` | **Cola**: reproducir después de esta (también en resultados de búsqueda) / ver la cola. |
 | `h` | **Historial** de lo que sonó; Enter la vuelve a poner. |
-| `c` | Panel derecho: la **portada** de la canción (dibujada con medios bloques de colores) o el gato. |
+| `c` | Panel derecho: el **gato** (por defecto) → la **portada** de la canción (medios bloques de colores) → **los dos** juntos (ventanas anchas). |
 | `b` | **Mini reproductor** — 3 líneas, para paneles pequeños (también automático si la terminal es baja). |
 
 En pantallas estrechas (celular en vertical) el diseño pasa a **compacto** solo:
