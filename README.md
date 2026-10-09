@@ -10,7 +10,7 @@ A **retro** terminal music player with **synced rooms** and
 - 🎧 **Solo mode:** play YouTube, radios, streams or local files. Works without a server, even offline (local files).
 - 👥 **Room mode (optional):** join a room with a code and listen together, in sync. Everyone takes **turns** as DJ (round-robin).
 - 🚫 **No downloads:** pure streaming. No Spotify Premium needed.
-- 📊 **Real audio-reactive visualizer:** live FFT (auto-installed ffmpeg) with several modes — bars, mirror, smooth, oscilloscope, plasma (cycle with `v`).
+- 📊 **Real audio-reactive visualizer:** live FFT (auto-installed ffmpeg) with full-width with smooth gradients, in several modes — bars, smooth, mirror, oscilloscope, plasma, waterfall (spectrogram), VU meters and fire (cycle with `v`).
 - 🖥️ **Cross-platform:** macOS, Linux and Windows.
 
 > The core is source-agnostic: YouTube is just one option.
@@ -80,6 +80,12 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `l` / `*` | **Favorite** the selected track; they collect in the `★ Favorites` list. |
 | `u` / `U` | **Queue** a track to play next (also works on search results) / view the queue. |
 | `h` | **History** of what played recently; Enter plays it again. |
+| `c` | Right panel: the track's **cover art** (drawn with coloured half-blocks) or the cat. |
+| `b` | **Mini player** — 3 lines, for small panes (also automatic when the terminal is short). |
+
+On narrow screens (phones in portrait) the layout goes **compact** automatically:
+one list at a time (Tab switches), no side panel. **Settings → Colours from the
+cover** tints the whole UI with each track's cover.
 
 In **Settings (`o`)**:
 

@@ -10,7 +10,7 @@ y **rotación de DJ por turnos** — escuchad juntos, desde la terminal.
 - 🎧 **Modo solo:** reproduce YouTube, radios, streams o archivos locales. Funciona sin servidor, incluso offline (archivos locales).
 - 👥 **Modo sala (opcional):** entra a una sala con un código y escuchad lo mismo, sincronizado. Cada persona pincha **por turnos** (rotación en bucle).
 - 🚫 **Sin descargar nada:** streaming puro. Sin Spotify Premium.
-- 📊 **Visualizador reactivo real:** FFT en vivo (ffmpeg auto-instalado) con varios modos — barras, espejo, suave, osciloscopio, plasma (cambia con `v`).
+- 📊 **Visualizador reactivo real:** FFT en vivo (ffmpeg auto-instalado) con a todo el ancho y con degradados suaves, en varios modos — barras, suave, espejo, osciloscopio, plasma, cascada (espectrograma), vúmetros y fuego (cambia con `v`).
 - 🖥️ **Multiplataforma:** macOS, Linux y Windows.
 
 > El núcleo es agnóstico de la fuente: YouTube es solo una opción más.
@@ -80,6 +80,12 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `l` / `*` | **Favorito** la canción seleccionada; se juntan en la lista `★ Favorites`. |
 | `u` / `U` | **Cola**: reproducir después de esta (también en resultados de búsqueda) / ver la cola. |
 | `h` | **Historial** de lo que sonó; Enter la vuelve a poner. |
+| `c` | Panel derecho: la **portada** de la canción (dibujada con medios bloques de colores) o el gato. |
+| `b` | **Mini reproductor** — 3 líneas, para paneles pequeños (también automático si la terminal es baja). |
+
+En pantallas estrechas (celular en vertical) el diseño pasa a **compacto** solo:
+una lista a la vez (Tab cambia), sin panel lateral. **Ajustes → Colores de la
+portada** tiñe toda la interfaz con la portada de cada canción.
 
 En **Ajustes (`o`)**:
 

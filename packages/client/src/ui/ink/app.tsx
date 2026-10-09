@@ -35,6 +35,7 @@ import {
   listThemes,
   activeThemeName,
   setTheme,
+  setThemeOverride,
   saveCustomTheme,
   encodeTheme,
   decodeTheme,
@@ -61,15 +62,32 @@ import {
 } from "../../sounds.ts";
 import { ensureYtDlp } from "../../ytdlp.ts";
 import { AudioAnalyzer, BANDS, WAVE_POINTS } from "../../audio.ts";
+import {
+  SPECTRUM_H,
+  VIZ_MODES,
+  Visualizer,
+  MiniSpectrum,
+  SmoothBar,
+  SoundChips,
+  CoverArt,
+  mix,
+} from "./visuals.tsx";
+import { getCover, type Cover } from "../../cover.ts";
 
 const SIDEBAR_W = 24;
-const SPECTRUM_H = 6;
 const SPECTRUM_COLS = BANDS;
+// Below this width the layout goes compact (phones in portrait): one list
+// panel at a time (Tab switches) and no cat/cover panel.
+const COMPACT_COLS = 72;
+// Fewer rows than this (or `b`): the 3-line mini player.
+const MINI_ROWS = 16;
+// Animated "now playing" equalizer icon in the track list (2 cells wide).
+const EQ_ANIM = ["▁▅", "▃▇", "▆▃", "▇▁", "▄▆", "▂▄"];
 const SEARCH_PRESETS = [10, 20, 30, 50, 100];
 // Sleep timer choices (minutes; -1 = "at the end of this track").
 const SLEEP_PRESETS = [0, 15, 30, 45, 60, 90, -1];
-const SLEEP_FADE_S = 30;
-const MAX_FAILED_SKIPS = 3; // consecutive unplayable tracks before we stop trying // the volume fades out over the timer's last 30s
+const SLEEP_FADE_S = 30; // the volume fades out over the timer's last 30s
+const MAX_FAILED_SKIPS = 3; // consecutive unplayable tracks before we stop trying
 const CROSSFADE_PRESETS = [0, 2, 4, 6, 8, 10]; // seconds
 const OFFLINE_PRESETS = [0, 1, 5, 10, 25, 50]; // tracks kept for offline play
 // Theme picker: extra actions listed after the theme names.
@@ -101,11 +119,6 @@ function fmtTime(s: number): string {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, "0")}`;
-}
-
-function bar(ratio: number, width: number): string {
-  const filled = Math.max(0, Math.min(width, Math.round(ratio * width)));
-  return "▰".repeat(filled) + "▱".repeat(width - filled);
 }
 
 /** Scrolls a string that doesn't fit (Winamp-style marquee); static if it fits. */
@@ -194,153 +207,6 @@ function useTermSize() {
 }
 
 // --- presentational pieces ---
-
-export const VIZ_MODES = ["bars", "mirror", "smooth", "scope", "plasma"] as const;
-const LEVELS = "▁▂▃▄▅▆▇█";
-
-function hslToHex(h: number, s: number, l: number): string {
-  s /= 100;
-  l /= 100;
-  const k = (n: number) => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => {
-    const c = l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
-    return Math.round(255 * c)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-
-// Colour columns by frequency: bass (left) → treble (right) across the theme's
-// low/mid/high spectrum colours — a gradient instead of one flat colour.
-function bandColor(i: number): string {
-  const [low, mid, high] = theme().spectrum;
-  return i < SPECTRUM_COLS / 3 ? low! : i < (2 * SPECTRUM_COLS) / 3 ? mid! : high!;
-}
-
-function vizBars(spec: number[], peaks: number[]): React.ReactNode[] {
-  const rows: React.ReactNode[] = [];
-  for (let level = SPECTRUM_H - 1; level >= 0; level--) {
-    const cells: React.ReactNode[] = [];
-    for (let i = 0; i < SPECTRUM_COLS; i++) {
-      const filled = (spec[i] ?? 0) > level;
-      const cap = !filled && Math.floor(peaks[i] ?? 0) === level && (peaks[i] ?? 0) > 0.3;
-      cells.push(
-        <Text key={i} color={bandColor(i)} dimColor={cap}>
-          {filled ? "█" : cap ? "▀" : " "}
-        </Text>,
-      );
-    }
-    rows.push(<Box key={level}>{cells}</Box>);
-  }
-  return rows;
-}
-
-function vizSmooth(spec: number[], peaks: number[]): React.ReactNode[] {
-  const rows: React.ReactNode[] = [];
-  for (let level = SPECTRUM_H - 1; level >= 0; level--) {
-    const cells: React.ReactNode[] = [];
-    for (let i = 0; i < SPECTRUM_COLS; i++) {
-      const h = spec[i] ?? 0;
-      const cap = h <= level && Math.floor(peaks[i] ?? 0) === level && (peaks[i] ?? 0) > 0.3;
-      const ch =
-        h >= level + 1
-          ? "█"
-          : h > level
-            ? LEVELS[Math.min(7, Math.floor((h - level) * 8))]
-            : cap
-              ? "▀"
-              : " ";
-      cells.push(
-        <Text key={i} color={bandColor(i)} dimColor={cap}>
-          {ch}
-        </Text>,
-      );
-    }
-    rows.push(<Box key={level}>{cells}</Box>);
-  }
-  return rows;
-}
-
-function vizMirror(spec: number[]): React.ReactNode[] {
-  const [low, mid, high] = theme().spectrum;
-  const cy = (SPECTRUM_H - 1) / 2;
-  const rows: React.ReactNode[] = [];
-  for (let r = 0; r < SPECTRUM_H; r++) {
-    const dist = Math.abs(r - cy);
-    const color = dist >= 2.5 ? high : dist >= 1 ? mid : low;
-    let line = "";
-    for (let i = 0; i < SPECTRUM_COLS; i++) {
-      const half = ((spec[i] ?? 0) / SPECTRUM_H) * (SPECTRUM_H / 2) + 0.3;
-      line += dist <= half ? "█" : " ";
-    }
-    rows.push(<Text key={r} color={color}>{line}</Text>);
-  }
-  return rows;
-}
-
-function vizScope(wave: number[]): React.ReactNode[] {
-  const accent = theme().accent;
-  const grid: string[][] = Array.from({ length: SPECTRUM_H }, () =>
-    Array(SPECTRUM_COLS).fill(" "),
-  );
-  for (let x = 0; x < SPECTRUM_COLS; x++) {
-    const v = wave[Math.floor((x / SPECTRUM_COLS) * wave.length)] ?? 0;
-    const row = Math.max(
-      0,
-      Math.min(SPECTRUM_H - 1, Math.round((1 - (v + 1) / 2) * (SPECTRUM_H - 1))),
-    );
-    grid[row]![x] = "●";
-  }
-  return grid.map((cells, r) => (
-    <Text key={r} color={accent}>{cells.join("")}</Text>
-  ));
-}
-
-function vizPlasma(frame: number, energy: number): React.ReactNode[] {
-  const rows: React.ReactNode[] = [];
-  for (let r = 0; r < SPECTRUM_H; r++) {
-    const spans: React.ReactNode[] = [];
-    for (let x = 0; x < SPECTRUM_COLS; x++) {
-      const v =
-        Math.sin(x * 0.3 + frame * 0.15) +
-        Math.sin(r * 0.6 + frame * 0.1) +
-        Math.sin((x + r) * 0.2 + frame * 0.2);
-      const hue = (((v + 3) / 6) * 360 + frame * 3) % 360;
-      const color = hslToHex(hue, 85, 30 + energy * 45);
-      spans.push(<Text key={x} color={color}>█</Text>);
-    }
-    rows.push(<Box key={r}>{spans}</Box>);
-  }
-  return rows;
-}
-
-function Visualizer({
-  mode,
-  spec,
-  peaks,
-  wave,
-  frame,
-  playing,
-}: {
-  mode: string;
-  spec: number[];
-  peaks: number[];
-  wave: number[];
-  frame: number;
-  playing: boolean;
-}) {
-  let rows: React.ReactNode[];
-  if (mode === "mirror") rows = vizMirror(spec);
-  else if (mode === "smooth") rows = vizSmooth(spec, peaks);
-  else if (mode === "scope") rows = vizScope(wave);
-  else if (mode === "plasma") {
-    const energy = spec.reduce((a, b) => a + b, 0) / (spec.length * SPECTRUM_H);
-    rows = vizPlasma(frame, playing ? Math.max(0.15, energy) : 0.1);
-  } else rows = vizBars(spec, peaks);
-  return <Box flexDirection="column">{rows}</Box>;
-}
 
 // --- Cat mascot (ᓚᘏᗢ) ---
 // Pacing cat used as a loading spinner; constant width so nothing jitters.
@@ -522,6 +388,7 @@ function NowPlaying({
   spec,
   peaks,
   wave,
+  history,
   frame,
   mode,
   loading,
@@ -531,11 +398,14 @@ function NowPlaying({
   artist,
   reaction,
   sounds,
+  art,
+  cover,
 }: {
   state: Player["state"];
   spec: number[];
   peaks: number[];
   wave: number[];
+  history: number[][];
   frame: number;
   mode: string;
   loading: boolean;
@@ -544,98 +414,153 @@ function NowPlaying({
   width: number;
   artist?: string;
   reaction: "wink" | "scared" | "meow" | null;
-  sounds?: string; // "what's in this song" line (sound detection), if on
+  sounds: { tags: SoundTag[]; bpm: number | null } | null; // null = detection off
+  art: "cat" | "cover" | "none"; // right-hand panel
+  cover: Cover | null;
 }) {
   const accent = theme().accent;
+  const compact = width < COMPACT_COLS;
   const dur = fmtTime(state.duration);
   const title = state.title ?? t("ui.noSong");
-  const stateText = loading
-    ? t("ui.loading")
-    : state.paused
-      ? `⏸  ${t("ui.state.pause")}`
-      : state.url
-        ? `▶  ${t("ui.state.play")}`
-        : `■  ${t("ui.state.stop")}`;
+  const icon = loading ? "⏳" : state.paused ? "⏸" : state.url ? "▶" : "■";
+  const stateText = compact
+    ? icon
+    : loading
+      ? t("ui.loading")
+      : `${icon}  ${t(state.paused ? "ui.state.pause" : state.url ? "ui.state.play" : "ui.state.stop")}`;
   const repIcon = repeat === "one" ? "🔂" : "🔁";
   const ratio = state.duration > 0 ? state.position / state.duration : 0;
-  const progW = Math.max(10, width - 56);
-  const bass =
-    spec.length >= 3 ? (spec[0]! + spec[1]! + spec[2]!) / (3 * SPECTRUM_H) : 0;
+  // Inner width of the left column: border (2) + padding (2) + the art panel.
+  const artW = art === "none" ? 0 : CAT_W + 2 + 2;
+  const innerW = Math.max(12, width - 4 - artW);
+  const remaining = state.duration > 0 ? `  -${fmtTime(state.duration - state.position)}` : "";
+  const timeText = `${fmtTime(state.position)} / ${dur}${compact ? "" : remaining}`;
+  const progW = Math.max(6, innerW - timeText.length - 1);
+  const bass = spec.length >= 3 ? (spec[0]! + spec[1]! + spec[2]!) / (3 * SPECTRUM_H) : 0;
   const cat = loading
     ? CAT_WALK[frame % CAT_WALK.length]!
     : catMascot(!!state.url && !state.paused, state.paused, bass);
-  const catMode: "play" | "pause" | "stop" = state.paused
-    ? "pause"
-    : state.url
-      ? "play"
-      : "stop";
+  const catMode: "play" | "pause" | "stop" = state.paused ? "pause" : state.url ? "play" : "stop";
+  const rightLen = stateText.length + (compact ? 6 : 18);
+  // Little note bubble over the cover (the big cat has its own).
+  const bubble = !state.url || state.paused ? "z Z" : ["  ♪  ", " ♪ ♫ ", " ♫ ♪ "][Math.floor(frame / 5) % 3]!;
+  const chips = sounds ? (
+    <SoundChips tags={sounds.tags} bpm={sounds.bpm} listening={t("sounds.listening")} />
+  ) : null;
 
   return (
     <Box borderStyle="round" borderColor={accent} flexDirection="row" paddingX={1}>
-      <Box flexDirection="column" flexGrow={1}>
+      <Box flexDirection="column" width={innerW}>
         <Box justifyContent="space-between">
           <Text bold color={accent} wrap="truncate">
-            ♫ {marquee(title, Math.max(10, width - 64), frame)}
+            ♫ {marquee(title, Math.max(6, innerW - rightLen), frame)}
           </Text>
           <Text>
             <Text color={shuffle ? accent : "gray"}>🔀 </Text>
             <Text color={repeat === "off" ? "gray" : accent}>{repIcon} </Text>
             <Text color={loading ? "yellow" : accent}>{stateText}</Text>
-            <Text color={accent}>  {cat}</Text>
+            {compact ? null : <Text color={accent}>  {cat}</Text>}
           </Text>
         </Box>
         <Box justifyContent="space-between">
           <Text dimColor wrap="truncate">
             {artist ? `  🎙 ${artist}` : " "}
           </Text>
-          {sounds ? (
+          {chips && !compact ? (
             <Box flexShrink={1} marginLeft={2}>
-              <Text color={accent} wrap="truncate">
-                {sounds}
-              </Text>
+              {chips}
             </Box>
           ) : null}
         </Box>
-        <Box>
-          <Visualizer
-            mode={mode}
-            spec={spec}
-            peaks={peaks}
-            wave={wave}
-            frame={frame}
-            playing={!!state.url && !state.paused}
-          />
-        </Box>
+        {chips && compact ? <Box>{chips}</Box> : null}
+        <Visualizer
+          mode={mode}
+          spec={spec}
+          peaks={peaks}
+          wave={wave}
+          history={history}
+          frame={frame}
+          playing={!!state.url && !state.paused}
+          width={innerW}
+          vuLabels={[t("viz.vuLevel"), t("viz.vuLow"), t("viz.vuMid"), t("viz.vuHigh")]}
+        />
         <Box marginTop={1}>
-          <Text color={accent}>{bar(ratio, progW)}</Text>
-          <Text dimColor>
-            {" "}
-            {Math.round(ratio * 100)}%  {fmtTime(state.position)} / {dur}
-          </Text>
+          <SmoothBar ratio={ratio} width={progW} />
+          <Text dimColor> {timeText}</Text>
         </Box>
         <Box>
           <Text>{state.volume === 0 ? "🔇" : "🔊"} </Text>
-          <Text color={accent}>{bar(state.volume / 100, 12)}</Text>
-          <Text dimColor> {state.volume}%</Text>
+          <SmoothBar ratio={state.volume / 100} width={12} gradient={false} />
+          <Text dimColor> {Math.round(state.volume)}%</Text>
         </Box>
       </Box>
-      <Box
-        flexShrink={0}
-        marginLeft={2}
-        alignItems="center"
-        justifyContent="center"
-      >
-        <PixelCat
-          mode={catMode}
-          beat={bass}
-          frame={frame}
-          ratio={ratio}
-          reaction={reaction}
-          muted={state.volume === 0}
-          shuffle={shuffle}
-          repeat={repeat}
-        />
+      {art === "none" ? null : (
+        <Box flexShrink={0} marginLeft={2} alignItems="center" justifyContent="center">
+          {art === "cover" && cover ? (
+            <Box flexDirection="column">
+              <Box justifyContent="center">
+                <Text color={accent} bold>
+                  {bubble}
+                </Text>
+              </Box>
+              <Box borderStyle="round" borderColor={accent}>
+                <CoverArt cover={cover} />
+              </Box>
+            </Box>
+          ) : (
+            <PixelCat
+              mode={catMode}
+              beat={bass}
+              frame={frame}
+              ratio={ratio}
+              reaction={reaction}
+              muted={state.volume === 0}
+              shuffle={shuffle}
+              repeat={repeat}
+            />
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** 3-line player for small panes (tmux splits, or `b`). */
+function MiniPlayer({
+  state,
+  spec,
+  frame,
+  cols,
+  artist,
+  footer,
+}: {
+  state: Player["state"];
+  spec: number[];
+  frame: number;
+  cols: number;
+  artist?: string;
+  footer: React.ReactNode;
+}) {
+  const accent = theme().accent;
+  const icon = state.paused ? "⏸" : state.url ? "▶" : "■";
+  const time = `${icon} ${fmtTime(state.position)} / ${fmtTime(state.duration)}`;
+  const label = (state.title ?? t("ui.noSong")) + (artist ? ` — ${artist}` : "");
+  const specW = Math.max(6, Math.floor(cols * 0.35));
+  const ratio = state.duration > 0 ? state.position / state.duration : 0;
+  return (
+    <Box flexDirection="column" width={cols} paddingX={1}>
+      <Box justifyContent="space-between">
+        <Text bold color={accent} wrap="truncate">
+          ᓚᘏᗢ ♫ {marquee(label, Math.max(6, cols - time.length - 10), frame)}
+        </Text>
+        <Text color={accent}>{time}</Text>
       </Box>
+      <Box>
+        <MiniSpectrum spec={spec} width={specW} />
+        <Text> </Text>
+        <SmoothBar ratio={ratio} width={Math.max(4, cols - specW - 3)} />
+      </Box>
+      {footer}
     </Box>
   );
 }
@@ -820,7 +745,8 @@ type Overlay =
   | { kind: "themeName"; colors: string[] }
   | { kind: "themeImport" }
   | { kind: "message"; title: string; text: string }
-  | { kind: "sounds" };
+  | { kind: "sounds" }
+  | { kind: "coverColors" };
 
 // Settings menu entries, in order: [i18n label key, what it opens].
 const SETTINGS_ITEMS: [string, string][] = [
@@ -831,6 +757,7 @@ const SETTINGS_ITEMS: [string, string][] = [
   ["ui.optCrossfade", "crossfade"],
   ["ui.optOffline", "offline"],
   ["ui.optSounds", "sounds"],
+  ["ui.optCoverColors", "coverColors"],
   ["ui.optSleep", "sleep"],
   ["ui.optHistory", "history"],
   ["ui.optUpdate", "update"],
@@ -866,6 +793,8 @@ const HELP_ROWS: [string, string][] = [
   ["y", "keys.lyrics"],
   ["", "keys.secLook"],
   ["v", "keys.viz"],
+  ["c", "keys.art"],
+  ["b", "keys.mini"],
   ["e", "keys.eq"],
   ["", "keys.secInside"],
   ["u", "keys.inResults"],
@@ -879,6 +808,7 @@ const HELP_ROWS: [string, string][] = [
   ["·", "keys.setCrossfade"],
   ["·", "keys.setOffline"],
   ["·", "keys.setSounds"],
+  ["·", "keys.setCoverColors"],
   ["·", "keys.setUpdate"],
   ["·", "keys.setLang"],
   ["", "keys.secApp"],
@@ -935,6 +865,12 @@ function App({
   const [soundTags, setSoundTags] = useState<SoundTag[]>([]);
   const [bpm, setBpm] = useState<number | null>(null);
   const taggerRef = useRef<SoundTagger | null>(null);
+  // Visuals: cover art (or the cat) on the right, its colours, mini player.
+  const [cover, setCover] = useState<Cover | null>(null);
+  const [artPref, setArtPref] = useState<"cover" | "cat">(loadSettings().artPanel ?? "cover");
+  const [coverColors, setCoverColors] = useState<boolean>(loadSettings().coverColors ?? false);
+  const [miniMode, setMiniMode] = useState<boolean>(loadSettings().miniMode ?? false);
+  const historyRef = useRef<number[][]>([]); // recent spectra (waterfall mode)
   if (!taggerRef.current) {
     taggerRef.current = new SoundTagger(() => !!player.state.url && !player.state.paused);
   }
@@ -979,7 +915,7 @@ function App({
   const crossfadeRef = useRef(crossfade);
   crossfadeRef.current = crossfade;
   // Rows available for list items (NowPlaying ~13 + status + borders/title).
-  const panelMax = Math.max(3, rows - 19);
+  const panelMax = Math.max(3, rows - 19 - (cols < COMPACT_COLS && soundsOn ? 1 : 0));
   // Filtered view: indices into `tracks` that match the filter (all if none).
   const filt = filter.trim().toLowerCase();
   const viewIdx = filt
@@ -1240,6 +1176,26 @@ function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soundsOn, analyzer]);
 
+  // Cover art for the playing track (YouTube thumbnail; none for radios/files).
+  useEffect(() => {
+    setCover(null);
+    const url = state.url;
+    if (!url || !youtubeId(url)) return;
+    let alive = true;
+    void getCover(url, CAT_W, CAT_H * 2).then((c) => {
+      if (alive && player.state.url === url) setCover(c);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.url]);
+
+  // "Colours from the cover": tint the whole UI with the cover's colours.
+  useEffect(() => {
+    setThemeOverride(coverColors && cover ? cover.theme : null);
+  }, [cover, coverColors]);
+
   // The analyzer writes the latest data into refs (no re-render per event);
   // a single render tick below pushes it to state. This keeps the visualizer
   // updating smoothly regardless of how events batch.
@@ -1318,7 +1274,10 @@ function App({
         pk[i] = Math.max(sm[i]!, pk[i]! - 0.12);
       }
       applyFadesRef.current();
-      setSpec(sm.slice());
+      const snap = sm.slice();
+      historyRef.current.push(snap);
+      if (historyRef.current.length > SPECTRUM_H * 2) historyRef.current.shift();
+      setSpec(snap);
       setPeaks(pk.slice());
       setWave(waveRef.current);
       setFrame((f) => f + 1);
@@ -1604,6 +1563,7 @@ function App({
       crossfade: CROSSFADE_PRESETS.length,
       offline: OFFLINE_PRESETS.length,
       sounds: soundModelsReady() ? 3 : 2,
+      coverColors: 2,
       history: overlay.kind === "history" ? overlay.entries.length : 0,
       lang: SUPPORTED_LOCALES.length,
       playlists: playlists.length,
@@ -1699,6 +1659,19 @@ function App({
     if (ch === "h") return openOverlay({ kind: "history", entries: loadHistory() });
     if (ch === "l" || ch === "*") return toggleFav();
     if (ch === "U") return openOverlay({ kind: "queue" });
+    if (ch === "c") {
+      const next = artPref === "cover" ? "cat" : "cover";
+      setArtPref(next);
+      saveSettings({ artPanel: next });
+      return;
+    }
+    if (ch === "b") {
+      setMiniMode((m) => {
+        saveSettings({ miniMode: !m });
+        return !m;
+      });
+      return;
+    }
     if (ch === "u") {
       const tr = tracks[viewIdx[listIdx] ?? -1];
       if (focus === "tracks" && tr) enqueue(tr);
@@ -1740,6 +1713,7 @@ function App({
   function initialSel(o: Overlay): number {
     if (o.kind === "crossfade") return Math.max(0, CROSSFADE_PRESETS.indexOf(crossfade));
     if (o.kind === "sounds") return soundsOn ? 1 : 0;
+    if (o.kind === "coverColors") return coverColors ? 1 : 0;
     if (o.kind === "offline")
       return Math.max(0, OFFLINE_PRESETS.indexOf(loadSettings().offlineCache ?? 0));
     if (o.kind === "theme") return Math.max(0, listThemes().indexOf(activeThemeName()));
@@ -1796,6 +1770,11 @@ function App({
       trimCache(n); // shrinking (or turning off) frees the space right away
       // The current track gets cached the next time it loads (from mpv's stream).
       toast(n > 0 ? t("offline.on", { n }) : t("offline.off"));
+      return closeOverlay();
+    }
+    if (overlay.kind === "coverColors") {
+      setCoverColors(sel === 1);
+      saveSettings({ coverColors: sel === 1 });
       return closeOverlay();
     }
     if (overlay.kind === "sounds") {
@@ -2118,6 +2097,20 @@ function App({
       </Modal>
     );
   }
+  if (overlay.kind === "coverColors") {
+    return (
+      <Modal title={t("ui.optCoverColors")} cols={cols} rows={rows} width={wideW}>
+        <Text dimColor>{t("cover.note")}</Text>
+        <Box marginTop={1}>
+          <PickList
+            selected={sel}
+            maxVisible={pickMax}
+            options={[t("sleep.optOff") + (coverColors ? "" : "  ✓"), t("sounds.optOn") + (coverColors ? "  ✓" : "")]}
+          />
+        </Box>
+      </Modal>
+    );
+  }
   if (overlay.kind === "sounds") {
     const opts = [
       t("sleep.optOff") + (soundsOn ? "" : "  ✓"),
@@ -2149,6 +2142,9 @@ function App({
   }
 
   const loading = !!state.url && state.position === 0 && !state.paused;
+  const compact = cols < COMPACT_COLS;
+  const art: "cat" | "cover" | "none" = compact ? "none" : artPref === "cover" && cover ? "cover" : "cat";
+  const zebraBg = mix(accent, "#000000", 0.86); // faint stripe on every other row
 
   const active = activePlaylist();
   const renderPlaylist = (i: number, hl: boolean) => {
@@ -2166,25 +2162,39 @@ function App({
       </Text>
     );
   };
-  const trackW = Math.max(20, cols - SIDEBAR_W - 9);
+  // Panel border (2) + padding (2) + scrollbar (2).
+  const trackW = Math.max(16, (compact ? cols : cols - SIDEBAR_W) - 6);
   const renderTrack = (displayI: number, hl: boolean) => {
     const real = viewIdx[displayI]!;
     const tr = tracks[real];
     if (!tr) return null;
-    const prefix =
-      (real === current ? "▶ " : hl ? "› " : "  ") + (favs.has(tr.url) ? "★ " : "");
+    const playing = real === current;
+    // 3-cell prefix: animated equalizer on the playing track.
+    const icon = playing ? `${state.paused ? "⏸ " : EQ_ANIM[frame % EQ_ANIM.length]!} ` : hl ? "›  " : "   ";
+    const star = favs.has(tr.url) ? "★ " : "";
     const durStr = tr.duration ? fmtTime(tr.duration) : "";
-    const room = trackW - prefix.length - (durStr ? durStr.length + 1 : 0);
-    const name = tr.title.slice(0, room).padEnd(room);
-    const line = durStr ? `${prefix}${name} ${durStr}` : `${prefix}${name}`;
+    const room = Math.max(4, trackW - icon.length - star.length - (durStr ? durStr.length + 1 : 0));
+    const title = tr.title.slice(0, room);
+    const artistPart = tr.artist && !compact ? ` · ${tr.artist}`.slice(0, Math.max(0, room - title.length)) : "";
+    const pad = " ".repeat(Math.max(0, room - title.length - artistPart.length));
+    if (hl) {
+      return (
+        <Text color="black" backgroundColor={accent} bold={playing}>
+          {`${icon}${star}${title}${artistPart}${pad}${durStr ? ` ${durStr}` : ""}`}
+        </Text>
+      );
+    }
+    const bg = displayI % 2 === 1 ? zebraBg : undefined;
     return (
-      <Text
-        color={hl ? "black" : accent}
-        backgroundColor={hl ? accent : undefined}
-        bold={real === current}
-        dimColor={!tr.resolved && !hl}
-      >
-        {line}
+      <Text backgroundColor={bg}>
+        <Text color={accent}>{icon}</Text>
+        <Text color="yellow">{star}</Text>
+        <Text color={accent} bold={playing} dimColor={!tr.resolved}>
+          {title}
+        </Text>
+        <Text color="gray">{artistPart}</Text>
+        {pad}
+        <Text dimColor>{durStr ? ` ${durStr}` : ""}</Text>
       </Text>
     );
   };
@@ -2197,6 +2207,71 @@ function App({
   const queueTag = queue.length ? `⏭ ${queue.length} · ` : "";
   const toastText = Date.now() < toastRef.current.until ? toastRef.current.text : "";
   const reaction = frame < reactRef.current.until ? reactRef.current.type : null;
+
+  // Contextual one-line hints instead of every key at once (? lists them all).
+  const hint = filtering
+    ? t("hint.filter")
+    : focus === "sidebar"
+      ? t("hint.lists")
+      : compact
+        ? t("hint.mainShort")
+        : t("hint.main", { viz: mode });
+  const footer = (
+    <Box paddingX={1}>
+      {toastText ? (
+        <Text color={accent} bold wrap="truncate">
+          {toastText}
+        </Text>
+      ) : (
+        <Text color={accent} dimColor wrap="truncate">
+          {hint}
+        </Text>
+      )}
+    </Box>
+  );
+  const artistNow = current >= 0 ? tracks[current]?.artist : undefined;
+
+  if (miniMode || rows < MINI_ROWS) {
+    return (
+      <MiniPlayer
+        state={state}
+        spec={spec}
+        frame={frame}
+        cols={cols}
+        artist={artistNow}
+        footer={<Text dimColor wrap="truncate">{toastText || t("hint.mini")}</Text>}
+      />
+    );
+  }
+
+  const tracksPanel = (
+    <Panel
+      title={
+        filtering || filt
+          ? `filter: ${filter}${filtering ? "▌" : ""}  (${viewIdx.length})`
+          : t("ui.playlist", { n: tracks.length }).trim()
+      }
+      count={viewIdx.length}
+      selected={listIdx}
+      focused={focus === "tracks"}
+      maxVisible={panelMax}
+      renderItem={renderTrack}
+      emptyHint={t("ui.emptyHint")}
+      flexGrow={1}
+    />
+  );
+  const listsPanel = (
+    <Panel
+      title={t("ui.playlistsLabel").trim()}
+      count={playlists.length}
+      selected={sideIdx}
+      focused={focus === "sidebar"}
+      maxVisible={panelMax}
+      renderItem={renderPlaylist}
+      width={compact ? undefined : SIDEBAR_W}
+      flexGrow={compact ? 1 : undefined}
+    />
+  );
 
   return (
     <Box flexDirection="column" width={cols} height={rows}>
@@ -2219,54 +2294,23 @@ function App({
         loading={loading}
         shuffle={shuffle}
         repeat={repeat}
-        width={cols - 2}
-        artist={current >= 0 ? tracks[current]?.artist : undefined}
-        sounds={
-          soundsOn && state.url
-            ? [...soundTags.map((tg) => `${tg.emoji} ${tg.label}`), ...(bpm ? [`♩ ${bpm} BPM`] : [])].join(" · ") ||
-              t("sounds.listening")
-            : undefined
-        }
+        width={cols}
+        artist={artistNow}
+        sounds={soundsOn && state.url ? { tags: soundTags, bpm } : null}
         reaction={reaction}
+        history={historyRef.current}
+        art={art}
+        cover={cover}
       />
       <Box flexGrow={1}>
-        <Panel
-          title={t("ui.playlistsLabel").trim()}
-          count={playlists.length}
-          selected={sideIdx}
-          focused={focus === "sidebar"}
-          maxVisible={panelMax}
-          renderItem={renderPlaylist}
-          width={SIDEBAR_W}
-        />
-        <Panel
-          title={
-            filtering || filt
-              ? `filter: ${filter}${filtering ? "▌" : ""}  (${viewIdx.length})`
-              : t("ui.playlist", { n: tracks.length }).trim()
-          }
-          count={viewIdx.length}
-          selected={listIdx}
-          focused={focus === "tracks"}
-          maxVisible={panelMax}
-          renderItem={renderTrack}
-          emptyHint={t("ui.emptyHint")}
-          flexGrow={1}
-        />
-      </Box>
-      <Box paddingX={1}>
-        {toastText ? (
-          <Text color={accent} bold>
-            {toastText}
-          </Text>
-        ) : (
-          <Text color={accent} dimColor>
-            ↑↓ · ↵ play · space · n/p · s/r · v viz ({mode}) · e eq · / search ·
-            z similar · y lyrics · l fav · u queue · h history · t sleep · f filter ·
-            a add · d del · o settings · ? help · q quit
-          </Text>
+        {compact ? (focus === "sidebar" ? listsPanel : tracksPanel) : (
+          <>
+            {listsPanel}
+            {tracksPanel}
+          </>
         )}
       </Box>
+      {footer}
     </Box>
   );
 }

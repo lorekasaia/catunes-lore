@@ -105,8 +105,17 @@ export function setTheme(name: string): void {
   cached = null;
 }
 
+// Temporary colours (e.g. picked from the playing track's cover); never saved.
+let override: Theme | null = null;
+
+/** Sets (or clears, with null) a temporary theme on top of the chosen one. */
+export function setThemeOverride(t: Theme | null): void {
+  override = t;
+}
+
 /** The resolved active theme (custom overrides built-in; falls back to Green). */
 export function theme(): Theme {
+  if (override) return override;
   if (cached) return cached;
   const name = activeThemeName();
   cached = customThemes()[name] ?? BUILTIN[name] ?? BUILTIN[DEFAULT_THEME]!;
