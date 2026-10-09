@@ -238,6 +238,7 @@ export class AudioAnalyzer extends EventEmitter {
         this.buf = this.buf.subarray(bytesPerFrame);
         this.emit("bands", analyzeFrame(frame, this.peak));
         this.emit("wave", waveFrom(frame));
+        this.emit("pcm", frame); // raw frame for sound detection (sounds.ts)
       }
     });
     return ff;

@@ -28,6 +28,8 @@ export const HISTORY_FILE = join(CONFIG_DIR, "history.json");
 // internet. Opt-in (settings.offlineCache = how many tracks to keep).
 export const OFFLINE_DIR = join(CONFIG_DIR, "offline");
 export const OFFLINE_INDEX = join(OFFLINE_DIR, "index.json");
+// Downloaded ML models (sound detection), fetched on demand.
+export const MODELS_DIR = join(CONFIG_DIR, "models");
 // The favorites list is a regular playlist file with a fixed name, so it
 // shows in the sidebar and plays like any other list.
 export const FAVORITES_PLAYLIST = "★ Favorites";
@@ -129,6 +131,7 @@ export interface Settings {
   eqNight?: boolean; // home-theater-style night mode (dynamic-range compression)
   crossfade?: number; // seconds of fade-out/fade-in between tracks (0 = off)
   offlineCache?: number; // how many recent tracks to keep for offline play (0 = off)
+  soundDetect?: boolean; // show what the song contains (voices, instruments, genre, BPM)
   // Resume: last track + position within the last playlist.
   lastPlaylist?: string;
   lastUrl?: string;

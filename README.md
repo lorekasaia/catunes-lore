@@ -86,6 +86,13 @@ In **Settings (`o`)**:
 - **Crossfade** — fades each track out and the next one in (2–10s).
 - **Offline cache** — keeps the audio of the last N YouTube tracks you played in
   `~/.config/catunes/offline/` so they play without internet. Off by default.
+- **Sound detection** — shows what the song contains next to the artist:
+  vocals, instruments, genre, mood and tempo, e.g.
+  `🎤 vocals · 🎸 electric guitar · 🥁 drums · 🏷 rock · ♩ 133 BPM`. Runs on your
+  device with Google's [YAMNet](https://huggingface.co/audiomagic/yamnet-onnx)
+  (AudioSet, 521 classes) via ONNX Runtime's WebAssembly build, so it also
+  works on Termux; the model + runtime (~30 MB) download once, checksum-verified.
+  It's an estimate — dense full-band mixes can hide or confuse instruments.
 - **Update catunes** — for git installs (like the Termux bootstrap): `git pull`
   + rebuild, no typing needed. Also `catunes update`.
 

@@ -86,6 +86,14 @@ En **Ajustes (`o`)**:
 - **Transición suave** — baja el final de cada canción y sube el inicio de la siguiente (2–10s).
 - **Caché offline** — guarda el audio de las últimas N canciones de YouTube que
   escuchaste en `~/.config/catunes/offline/` para oírlas sin internet. Apagada por defecto.
+- **Detectar sonidos** — muestra junto al artista qué lleva la canción: voces,
+  instrumentos, género, ánimo y ritmo, p. ej.
+  `🎤 voz · 🎸 guitarra eléctrica · 🥁 batería · 🏷 rock · ♩ 133 BPM`. Funciona en
+  tu equipo con [YAMNet](https://huggingface.co/audiomagic/yamnet-onnx) de Google
+  (AudioSet, 521 clases) usando ONNX Runtime en WebAssembly, así que también va
+  en Termux; el modelo y el motor (~30 MB) se descargan una vez y se verifican.
+  Es una estimación: en mezclas muy cargadas puede no detectar o confundir algún
+  instrumento.
 - **Actualizar catunes** — para instalaciones con git (como el bootstrap de
   Termux): `git pull` + recompilar, sin escribir nada. También `catunes update`.
 

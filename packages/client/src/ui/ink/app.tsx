@@ -52,6 +52,13 @@ import { loadSettings, saveSettings, FAVORITES_PLAYLIST } from "../../config.ts"
 import { loadHistory, addHistory, clearHistory, type HistoryEntry } from "../../history.ts";
 import { cachedFile, cacheInBackground, trimCache, cachedCount } from "../../offline.ts";
 import { selfUpdate } from "../../update.ts";
+import {
+  SoundTagger,
+  soundModelsReady,
+  downloadSoundModels,
+  removeSoundModels,
+  type SoundTag,
+} from "../../sounds.ts";
 import { ensureYtDlp } from "../../ytdlp.ts";
 import { AudioAnalyzer, BANDS, WAVE_POINTS } from "../../audio.ts";
 
@@ -523,6 +530,7 @@ function NowPlaying({
   width,
   artist,
   reaction,
+  sounds,
 }: {
   state: Player["state"];
   spec: number[];
@@ -536,6 +544,7 @@ function NowPlaying({
   width: number;
   artist?: string;
   reaction: "wink" | "scared" | "meow" | null;
+  sounds?: string; // "what's in this song" line (sound detection), if on
 }) {
   const accent = theme().accent;
   const dur = fmtTime(state.duration);
@@ -575,9 +584,18 @@ function NowPlaying({
             <Text color={accent}>  {cat}</Text>
           </Text>
         </Box>
-        <Text dimColor wrap="truncate">
-          {artist ? `  🎙 ${artist}` : " "}
-        </Text>
+        <Box justifyContent="space-between">
+          <Text dimColor wrap="truncate">
+            {artist ? `  🎙 ${artist}` : " "}
+          </Text>
+          {sounds ? (
+            <Box flexShrink={1} marginLeft={2}>
+              <Text color={accent} wrap="truncate">
+                {sounds}
+              </Text>
+            </Box>
+          ) : null}
+        </Box>
         <Box>
           <Visualizer
             mode={mode}
@@ -801,7 +819,8 @@ type Overlay =
   | { kind: "themeEdit"; slot: number; colors: string[] }
   | { kind: "themeName"; colors: string[] }
   | { kind: "themeImport" }
-  | { kind: "message"; title: string; text: string };
+  | { kind: "message"; title: string; text: string }
+  | { kind: "sounds" };
 
 // Settings menu entries, in order: [i18n label key, what it opens].
 const SETTINGS_ITEMS: [string, string][] = [
@@ -811,6 +830,7 @@ const SETTINGS_ITEMS: [string, string][] = [
   ["ui.optTheme", "theme"],
   ["ui.optCrossfade", "crossfade"],
   ["ui.optOffline", "offline"],
+  ["ui.optSounds", "sounds"],
   ["ui.optSleep", "sleep"],
   ["ui.optHistory", "history"],
   ["ui.optUpdate", "update"],
@@ -858,6 +878,7 @@ const HELP_ROWS: [string, string][] = [
   ["·", "keys.setTheme"],
   ["·", "keys.setCrossfade"],
   ["·", "keys.setOffline"],
+  ["·", "keys.setSounds"],
   ["·", "keys.setUpdate"],
   ["·", "keys.setLang"],
   ["", "keys.secApp"],
@@ -909,6 +930,14 @@ function App({
   // "Up next": plays before the playlist continues, without touching the list.
   const [queue, setQueue] = useState<Track[]>([]);
   const [crossfade, setCrossfade] = useState<number>(loadSettings().crossfade ?? 0);
+  // Sound detection ("what's in this song"): tags + tempo for the playing track.
+  const [soundsOn, setSoundsOn] = useState<boolean>(loadSettings().soundDetect ?? false);
+  const [soundTags, setSoundTags] = useState<SoundTag[]>([]);
+  const [bpm, setBpm] = useState<number | null>(null);
+  const taggerRef = useRef<SoundTagger | null>(null);
+  if (!taggerRef.current) {
+    taggerRef.current = new SoundTagger(() => !!player.state.url && !player.state.paused);
+  }
 
   const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
   const [sel, setSel] = useState(0); // selection index inside list overlays
@@ -968,6 +997,7 @@ function App({
   const startTrack = (url: string, title?: string, fromSec = 0) => {
     const local = cachedFile(url);
     pendingAnalyzeRef.current = null;
+    taggerRef.current?.reset(); // tags/tempo belong to the previous track
     try {
       player.load(url, local ? { source: local, title } : {});
       if (local || !/^https?:\/\//i.test(url)) {
@@ -1181,6 +1211,35 @@ function App({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player, tracks, current, shuffle, repeat, queue]);
 
+  // Sound detection: the tagger listens to the analyzer's PCM (no extra
+  // download/request) and reports tags + tempo. Off = fully stopped.
+  useEffect(() => {
+    const tagger = taggerRef.current!;
+    if (!soundsOn) {
+      tagger.stop();
+      setSoundTags([]);
+      setBpm(null);
+      return;
+    }
+    const onPcm = (f: Buffer) => tagger.push(f);
+    const onTags = (tags: SoundTag[]) => setSoundTags(tags);
+    const onBpm = (b: number | null) => setBpm(b);
+    const onError = () => toast(t("sounds.modelFailed"), 6000);
+    analyzer.on("pcm", onPcm);
+    tagger.on("tags", onTags);
+    tagger.on("bpm", onBpm);
+    tagger.on("error", onError);
+    tagger.start(true);
+    return () => {
+      analyzer.off("pcm", onPcm);
+      tagger.off("tags", onTags);
+      tagger.off("bpm", onBpm);
+      tagger.off("error", onError);
+      tagger.stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soundsOn, analyzer]);
+
   // The analyzer writes the latest data into refs (no re-render per event);
   // a single render tick below pushes it to state. This keeps the visualizer
   // updating smoothly regardless of how events batch.
@@ -1338,6 +1397,7 @@ function App({
         lastPos: Math.floor(player.state.position),
       });
     }
+    taggerRef.current?.stop();
     analyzer.stop();
     player.quit();
     exit();
@@ -1543,6 +1603,7 @@ function App({
       sleep: SLEEP_PRESETS.length,
       crossfade: CROSSFADE_PRESETS.length,
       offline: OFFLINE_PRESETS.length,
+      sounds: soundModelsReady() ? 3 : 2,
       history: overlay.kind === "history" ? overlay.entries.length : 0,
       lang: SUPPORTED_LOCALES.length,
       playlists: playlists.length,
@@ -1678,6 +1739,7 @@ function App({
   }
   function initialSel(o: Overlay): number {
     if (o.kind === "crossfade") return Math.max(0, CROSSFADE_PRESETS.indexOf(crossfade));
+    if (o.kind === "sounds") return soundsOn ? 1 : 0;
     if (o.kind === "offline")
       return Math.max(0, OFFLINE_PRESETS.indexOf(loadSettings().offlineCache ?? 0));
     if (o.kind === "theme") return Math.max(0, listThemes().indexOf(activeThemeName()));
@@ -1734,6 +1796,20 @@ function App({
       trimCache(n); // shrinking (or turning off) frees the space right away
       // The current track gets cached the next time it loads (from mpv's stream).
       toast(n > 0 ? t("offline.on", { n }) : t("offline.off"));
+      return closeOverlay();
+    }
+    if (overlay.kind === "sounds") {
+      if (sel === 0) {
+        setSoundsOn(false);
+        saveSettings({ soundDetect: false });
+        return closeOverlay();
+      }
+      if (sel === 1) return void enableSounds();
+      // sel === 2: free the disk space again
+      setSoundsOn(false);
+      saveSettings({ soundDetect: false });
+      removeSoundModels();
+      toast(t("sounds.removed"));
       return closeOverlay();
     }
     if (overlay.kind === "history") {
@@ -1797,6 +1873,33 @@ function App({
     setTheme(parsed.name);
     bump((v) => v + 1);
     setOverlay({ kind: "message", title: t("theme.importLabel"), text: t("theme.imported", { name: parsed.name }) });
+  }
+
+  /** Turns sound detection on, downloading the model (~30 MB) the first time. */
+  async function enableSounds() {
+    if (!soundModelsReady()) {
+      setOverlay({ kind: "loading", text: t("sounds.downloading", { pct: 0 }) });
+      try {
+        let last = -1;
+        await downloadSoundModels((r) => {
+          const pct = Math.floor(r * 100);
+          if (pct !== last) {
+            last = pct;
+            setOverlay({ kind: "loading", text: t("sounds.downloading", { pct }) });
+          }
+        });
+      } catch (e) {
+        return setOverlay({
+          kind: "message",
+          title: t("ui.optSounds"),
+          text: `${t("sounds.downloadFailed")}\n\n${String(e)}`,
+        });
+      }
+    }
+    setSoundsOn(true);
+    saveSettings({ soundDetect: true });
+    toast(t("sounds.on"), 5000);
+    setOverlay({ kind: "none" });
   }
 
   async function runUpdate() {
@@ -2015,6 +2118,21 @@ function App({
       </Modal>
     );
   }
+  if (overlay.kind === "sounds") {
+    const opts = [
+      t("sleep.optOff") + (soundsOn ? "" : "  ✓"),
+      (soundModelsReady() ? t("sounds.optOn") : t("sounds.optOnDownload")) + (soundsOn ? "  ✓" : ""),
+      ...(soundModelsReady() ? [t("sounds.optRemove")] : []),
+    ];
+    return (
+      <Modal title={t("ui.optSounds")} cols={cols} rows={rows} width={wideW}>
+        <Text dimColor>{t("sounds.note")}</Text>
+        <Box marginTop={1}>
+          <PickList selected={sel} maxVisible={pickMax} options={opts} />
+        </Box>
+      </Modal>
+    );
+  }
   if (overlay.kind === "message") {
     return (
       <Modal title={overlay.title} cols={cols} rows={rows} width={wideW}>
@@ -2103,6 +2221,12 @@ function App({
         repeat={repeat}
         width={cols - 2}
         artist={current >= 0 ? tracks[current]?.artist : undefined}
+        sounds={
+          soundsOn && state.url
+            ? [...soundTags.map((tg) => `${tg.emoji} ${tg.label}`), ...(bpm ? [`♩ ${bpm} BPM`] : [])].join(" · ") ||
+              t("sounds.listening")
+            : undefined
+        }
         reaction={reaction}
       />
       <Box flexGrow={1}>

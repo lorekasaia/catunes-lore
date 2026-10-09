@@ -339,6 +339,10 @@ switch (cmd) {
     }
     break;
   }
+  case "__sounds-worker":
+    // Internal: model process for sound detection (spawned by the UI).
+    await (await import("./sounds-worker.ts")).runSoundsWorker(String(arg));
+    break;
   case "status":
     // Prints the "now playing" (for tmux/zellij bars). Empty if nothing is playing.
     console.log(readStatus());
