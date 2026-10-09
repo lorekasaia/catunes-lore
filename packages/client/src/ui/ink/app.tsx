@@ -560,7 +560,7 @@ function PickList({
       })}
       {start + max < options.length && <Text dimColor> ▼ …</Text>}
       <Box marginTop={1}>
-        <Text dimColor>↑↓ · ↵ select · esc cancel</Text>
+        <Text dimColor>{t("ui.pickHint")}</Text>
       </Box>
     </Box>
   );
@@ -1792,12 +1792,12 @@ function App({
     const preset =
       EQ_PRESETS.find(
         (p) => JSON.stringify(p.gains) === JSON.stringify(eq) && !!p.night === eqNight,
-      )?.name ?? "Custom";
+      )?.name ?? t("eq.custom");
     const knobRow = (b: number) =>
       Math.round(((12 - (eq[b] ?? 0)) / 24) * (H - 1));
     return (
       <Modal
-        title="Equalizer"
+        title={t("eq.label")}
         cols={cols}
         rows={rows}
         width={Math.min(cols - 4, 52)}
@@ -1849,13 +1849,13 @@ function App({
           })}
         </Box>
         <Box marginTop={1}>
-          <Text dimColor>←→ band · ↑↓ ±dB · 0 reset · p preset · esc close</Text>
+          <Text dimColor>{t("eq.hint")}</Text>
         </Box>
       </Modal>
     );
   }
   const pickMax = Math.max(3, rows - 9);
-  const lang = getLocale() === "es" ? "es" : "en";
+  const lang = getLocale();
   const catInput: CatInput = {
     mode: state.paused ? "pause" : state.url ? "play" : "stop",
     loading: !!state.url && state.position === 0 && !state.paused,
@@ -1891,7 +1891,7 @@ function App({
       <Modal title={t("ui.optSkin")} cols={cols} rows={rows} width={Math.min(cols - 4, 70)}>
         <Box>
           <Box flexDirection="column" flexGrow={1}>
-            <PickList selected={sel} maxVisible={pickMax} options={SKINS.map((k) => SKIN_NAMES[k][lang === "es" ? 1 : 0] + (k === skin ? "  ✓" : ""))} />
+            <PickList selected={sel} maxVisible={pickMax} options={SKINS.map((k) => SKIN_NAMES[k][lang === "es" ? 1 : lang === "fr" ? 2 : 0] + (k === skin ? "  ✓" : ""))} />
           </Box>
           <Box marginLeft={2}>
             <MiniCat look={previewLook} skin={previewSkin} frame={frame} />
@@ -2180,7 +2180,7 @@ function App({
     <Panel
       title={
         filtering || filt
-          ? `filter: ${filter}${filtering ? "▌" : ""}  (${viewIdx.length})`
+          ? `${t("ui.filterLabel")}: ${filter}${filtering ? "▌" : ""}  (${viewIdx.length})`
           : t("ui.playlist", { n: tracks.length }).trim()
       }
       count={viewIdx.length}
@@ -2374,7 +2374,7 @@ function renderOverlay(
       <Modal title={t("ui.deleteLabel").trim()} cols={cols} rows={rows}>
         <Text>{label}</Text>
         <Box marginTop={1}>
-          <Text dimColor>↵ / y = yes · esc = no</Text>
+          <Text dimColor>{t("ui.confirmHint")}</Text>
         </Box>
       </Modal>
     );

@@ -64,7 +64,7 @@ export interface CatInput {
   sinceStartMs: number; // time since catunes opened
   sleepTimer: "off" | "on" | "soon"; // soon = under 2 minutes left
   skin: Skin;
-  lang: "en" | "es";
+  lang: "en" | "es" | "fr";
 }
 
 export type EyeKind =
@@ -132,27 +132,27 @@ function rand(n: number): number {
   return x - Math.floor(x);
 }
 
-const BUBBLES: Record<string, [string, string]> = {
-  meow: ["meow!", "¡miau!"],
-  woof: ["woof!", "¡guau!"],
-  squeak: ["squeak!", "¡iiip!"],
-  noted: ["noted!", "¡anotado!"],
-  huh: ["huh?", "¿eh?"],
-  sniff: ["sniff?", "¿snif?"],
-  lala: ["♪ la la ♪", "♪ la la ♪"],
-  hi: ["hi!", "¡hola!"],
-  morning: ["good morning!", "¡buenos días!"],
-  afternoon: ["good afternoon!", "¡buenas tardes!"],
-  evening: ["good evening!", "¡buenas noches!"],
-  boo: ["boo!", "¡bu!"],
-  pounce: ["!!", "¡¡!!"],
-  lick: ["lick lick", "lamer…"],
-  yawn: ["*yawn*", "*bostezo*"],
-  mute: ["🙀 mute", "🙀 mudo"],
+const BUBBLES: Record<string, [string, string, string]> = {
+  meow: ["meow!", "¡miau!", "miaou !"],
+  woof: ["woof!", "¡guau!", "ouaf !"],
+  squeak: ["squeak!", "¡iiip!", "couic !"],
+  noted: ["noted!", "¡anotado!", "noté !"],
+  huh: ["huh?", "¿eh?", "hein ?"],
+  sniff: ["sniff?", "¿snif?", "snif ?"],
+  lala: ["♪ la la ♪", "♪ la la ♪", "♪ la la ♪"],
+  hi: ["hi!", "¡hola!", "salut !"],
+  morning: ["good morning!", "¡buenos días!", "bonjour !"],
+  afternoon: ["good afternoon!", "¡buenas tardes!", "bon après-midi !"],
+  evening: ["good evening!", "¡buenas noches!", "bonsoir !"],
+  boo: ["boo!", "¡bu!", "bouh !"],
+  pounce: ["!!", "¡¡!!", "!!"],
+  lick: ["lick lick", "lamer…", "léchouille"],
+  yawn: ["*yawn*", "*bostezo*", "*bâille*"],
+  mute: ["🙀 mute", "🙀 mudo", "🙀 muet"],
 };
 
 export function catLook(i: CatInput): CatLook {
-  const li = i.lang === "es" ? 1 : 0;
+  const li = i.lang === "es" ? 1 : i.lang === "fr" ? 2 : 0;
   const b = (k: string) => BUBBLES[k]![li];
   const date = new Date(i.now);
   const hour = date.getHours();
@@ -747,13 +747,13 @@ function MiniFrame({ rows, bubble }: { rows: Cell[][]; bubble: string }) {
 }
 
 /** Skin names for the picker. */
-export const SKIN_NAMES: Record<Skin, [string, string]> = {
-  classic: ["Classic (theme colour)", "Clásico (color del tema)"],
-  tabby: ["Tabby", "Atigrado"],
-  black: ["Black cat", "Gato negro"],
-  calico: ["Calico", "Calicó"],
-  siamese: ["Siamese", "Siamés"],
-  gradient: ["Rainbow (theme gradient)", "Arcoíris (degradado del tema)"],
-  dog: ["Dog", "Perro"],
-  bunny: ["Bunny", "Conejo"],
+export const SKIN_NAMES: Record<Skin, [string, string, string]> = {
+  classic: ["Classic (theme colour)", "Clásico (color del tema)", "Classique (couleur du thème)"],
+  tabby: ["Tabby", "Atigrado", "Tigré"],
+  black: ["Black cat", "Gato negro", "Chat noir"],
+  calico: ["Calico", "Calicó", "Calico"],
+  siamese: ["Siamese", "Siamés", "Siamois"],
+  gradient: ["Rainbow (theme gradient)", "Arcoíris (degradado del tema)", "Arc-en-ciel (dégradé du thème)"],
+  dog: ["Dog", "Perro", "Chien"],
+  bunny: ["Bunny", "Conejo", "Lapin"],
 };

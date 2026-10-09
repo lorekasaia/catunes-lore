@@ -6,13 +6,16 @@
 //
 // Usage:  t("doctor.header")   ·   t("add.ok", { url })
 
-export type Locale = "en" | "es";
-export const SUPPORTED_LOCALES: Locale[] = ["en", "es"];
+import { FR } from "./i18n-fr.ts";
+
+export type Locale = "en" | "es" | "fr";
+export const SUPPORTED_LOCALES: Locale[] = ["en", "es", "fr"];
 
 /** Human-readable names shown in the in-app language picker. */
 export const LOCALE_NAMES: Record<Locale, string> = {
   en: "English",
   es: "Español",
+  fr: "Français",
 };
 
 type Dict = Record<string, string>;
@@ -206,6 +209,12 @@ CONTROLS (interface):
     "ui.optSounds": "Sound detection",
     "ui.optCoverColors": "Colours from the cover",
     "ui.optSkin": "Mascot",
+    "ui.pickHint": "↑↓ · ↵ select · esc cancel",
+    "ui.confirmHint": "↵ / y = yes · esc = no",
+    "ui.filterLabel": "filter",
+    "eq.label": "Equalizer",
+    "eq.custom": "Custom",
+    "eq.hint": "←→ band · ↑↓ ±dB · 0 reset · p preset · esc close",
     "keys.setSkin": "Mascot — fur (tabby, black, calico, siamese…) or dog / bunny",
     "cover.note":
       "Tints the whole interface with the colours of the playing track's cover (YouTube tracks). Your chosen theme comes back for tracks without a cover.",
@@ -475,6 +484,12 @@ CONTROLES (interfaz):
     "ui.optSounds": "Detectar sonidos",
     "ui.optCoverColors": "Colores de la portada",
     "ui.optSkin": "Mascota",
+    "ui.pickHint": "↑↓ · ↵ elegir · esc cancelar",
+    "ui.confirmHint": "↵ / y = sí · esc = no",
+    "ui.filterLabel": "filtro",
+    "eq.label": "Ecualizador",
+    "eq.custom": "Personalizado",
+    "eq.hint": "←→ banda · ↑↓ ±dB · 0 reiniciar · p preset · esc cerrar",
     "keys.setSkin": "Mascota — pelaje (atigrado, negro, calicó, siamés…) o perro / conejo",
     "cover.note":
       "Tiñe toda la interfaz con los colores de la portada de la canción que suena (canciones de YouTube). Para las canciones sin portada vuelve tu tema elegido.",
@@ -556,6 +571,7 @@ CONTROLES (interfaz):
     "theme.unknown": "Tema desconocido: {name}",
     "theme.usage": "Uso: catunes theme [list | export <nombre> | import \"<código>\"]",
   },
+  fr: FR,
 };
 
 let current: Locale | null = null;

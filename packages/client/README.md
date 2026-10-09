@@ -30,7 +30,7 @@ YouTube · `a` add · `o` settings · `v` visualizer · `?` help · `q` quit.
 - 🎧 Stream YouTube, radios and local files (pure streaming, no downloads)
 - 📊 Real audio-reactive visualizer (FFT) with modes: bars, mirror, smooth, oscilloscope, plasma
 - 📁 Multiple playlists · import YouTube playlists · search
-- 🎨 Color themes (custom too) · 🌍 multi-language (English/Spanish)
+- 🎨 Color themes (custom too) · 🌍 multi-language (English/Spanish/French)
 - 📌 "Now playing" in the terminal title · control from any pane
 
 ## Disclaimer
