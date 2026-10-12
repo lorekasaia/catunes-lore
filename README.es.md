@@ -94,6 +94,15 @@ nueva los recibe), **eco**, **freno** (la vieja se detiene como un vinilo),
 conocen los BPM de las dos (se aprenden con Detectar sonidos activado), la que
 entra se acelera o frena (±8 %, sin cambiar el tono) y luego vuelve a su ritmo.
 
+**Modo DJ** (`j`): dos platos lado a lado y un crossfader. Carga cualquier
+canción en cualquiera de los dos, dale play/pausa a cada uno, ajusta el tempo
+(`+`/`-`) o **sincronízalo** con el BPM del otro plato (`s`), corta graves,
+medios o agudos (`1` `2` `3`), gira la perilla de filtro (`[` `]`: paso bajo ←
+→ paso alto), añade eco (`e`), frena (`b`), marca y salta a un **cue**
+(`c`/`v`), haz **bucles** de 1 a 8 beats (`g`/`G`), toca la **bocina** (`h`) o
+deja que **mezcle solo** (`a`). Al salir (`j`/Esc) sigue sonando el plato hacia
+el que apunta el crossfader.
+
 El **ecualizador** (`e`) tiene 48 presets — los clásicos de Winamp más curvas
 por género y por dispositivo; Enter abre la lista con la curva de cada uno,
 `p`/`P` los recorren.

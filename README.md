@@ -94,6 +94,14 @@ them), **echo out**, **brake** (the old track stops like a braking turntable),
 tracks' BPMs are known (learned while Sound detection is on), the incoming
 track is sped up/slowed down (±8%, pitch kept) to match, then eases back.
 
+**DJ mode** (`j`): two decks side by side and a crossfader. Load any track
+into either deck, play/pause each, nudge tempo (`+`/`-`) or **sync** it to the
+other deck's BPM (`s`), kill lows/mids/highs (`1` `2` `3`), turn a filter knob
+(`[` `]`: low-pass ← → high-pass), add echo (`e`), brake (`b`), set and jump to
+a **cue** (`c`/`v`), **loop** 1–8 beats (`g`/`G`), sound an **air horn** (`h`)
+or let it **blend automatically** (`a`). Leaving (`j`/Esc) keeps playing the
+deck the crossfader points to.
+
 The **equalizer** (`e`) has 48 presets — Winamp's classics plus genre and
 device curves; Enter opens the list with a preview of each curve, `p`/`P`
 step through them.

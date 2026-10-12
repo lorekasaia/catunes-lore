@@ -79,6 +79,8 @@ import {
 } from "./visuals.tsx";
 import { getCover, type Cover } from "../../cover.ts";
 import { EQ_PRESETS, findPreset, curve } from "../../eq-presets.ts";
+import { DjView } from "./dj.tsx";
+import type { Player as Deck } from "../../player.ts";
 import {
   CAT_W,
   CAT_H,
@@ -638,6 +640,7 @@ const HELP_ROWS: [string, string][] = [
   ["v", "keys.viz"],
   ["c", "keys.art"],
   ["b", "keys.mini"],
+  ["j", "keys.djMode"],
   ["e", "keys.eq"],
   ["", "keys.secInside"],
   ["u", "keys.inResults"],
@@ -711,6 +714,9 @@ function App({
     const style = (TRANSITIONS as readonly string[]).includes(s.djStyle ?? "") ? (s.djStyle as Transition) : "off";
     return { style, seconds: s.djSeconds ?? 8, tempo: s.djTempo ?? true };
   });
+  // Manual DJ mode (`j`): both decks, driven by the DJ screen.
+  const [djDecks, setDjDecks] = useState<[Deck, Deck] | null>(null);
+  const djEntering = useRef(false); // starting deck B can take a second
   const djRef = useRef(dj);
   djRef.current = dj;
   // The next track, chosen once ahead of time (so the prepared deck and the
@@ -1145,7 +1151,7 @@ function App({
     let gain = 1;
     // Two-deck DJ transitions replace the simple fade (and own the volume
     // while blending).
-    if (player.mixing) return;
+    if (player.mixing || player.manual) return;
     const cf = djRef.current.style === "off" ? crossfadeRef.current : 0;
     // Only once the file actually opened: a track that never loads must not
     // leave the volume stuck at 0.
@@ -1184,7 +1190,7 @@ function App({
   const djTick = () => {
     const d = djRef.current;
     const s = player.state;
-    if (d.style === "off" || !s.url || s.paused || player.mixing) return;
+    if (d.style === "off" || !s.url || s.paused || player.mixing || player.manual) return;
     if (repeat === "one" || sleepRef.current.endOfTrack) return;
     // Lead time: how early the transition starts before the end of the track.
     const lead = d.style === "cut" ? 0.6 : d.style === "brake" ? 1.8 : d.seconds;
@@ -1391,6 +1397,8 @@ function App({
   // --- input handling ---
   useInput((ch, key) => {
     lastKeyAt.current = Date.now();
+    // The DJ screen handles its own keys (and none count while it's opening).
+    if (djDecks || djEntering.current) return;
     // Overlays first.
     if (overlay.kind === "loading") return;
 
@@ -1624,6 +1632,17 @@ function App({
     if (ch === "h") return openOverlay({ kind: "history", entries: loadHistory() });
     if (ch === "l" || ch === "*") return toggleFav();
     if (ch === "U") return openOverlay({ kind: "queue" });
+    if (ch === "j") {
+      djEntering.current = true;
+      toast(t("djv.entering"), 5000);
+      void player
+        .enterManual()
+        .then((pair) => setDjDecks(pair))
+        .finally(() => {
+          djEntering.current = false;
+        });
+      return;
+    }
     if (ch === "c") {
       const next = artPref === "cat" ? "cover" : artPref === "cover" ? "both" : "cat";
       setArtPref(next);
@@ -1908,7 +1927,40 @@ function App({
     }
   }
 
+  /** Leaves DJ mode with `keep` as the playing track. */
+  const exitDj = (keep: Deck) => {
+    setDjDecks(null);
+    player.exitManual(keep, mutedRef.current !== null ? 0 : userVolRef.current);
+    const url = keep.state.url;
+    const i = url ? tracks.findIndex((tr) => tr.url === url) : -1;
+    setCurrent(i);
+    if (i >= 0) setListIdx(i);
+    taggerRef.current?.reset();
+    djStateRef.current = { prepared: false, mixed: false };
+    upcomingRef.current = null;
+    if (url) {
+      // The visualizer follows the kept deck (its stream info is re-sent).
+      analyzer.stop();
+      pendingAnalyzeRef.current = { url, fromSec: keep.state.position };
+    }
+  };
+
   // --- render overlays ---
+  if (djDecks) {
+    return (
+      <DjView
+        deck={player}
+        decks={djDecks}
+        tracks={tracks}
+        volume={mutedRef.current !== null ? 0 : userVolRef.current}
+        blendSeconds={dj.seconds}
+        frame={frame}
+        cols={cols}
+        rows={rows}
+        onExit={exitDj}
+      />
+    );
+  }
   if (overlay.kind === "dj") {
     return (
       <Modal title={t("ui.optDj")} cols={cols} rows={rows} width={Math.min(cols - 4, 72)}>

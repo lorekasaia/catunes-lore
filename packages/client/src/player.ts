@@ -335,6 +335,12 @@ export class Player extends EventEmitter {
     this.send({ command: ["af-command", "djfx", command, String(value), target] });
   }
 
+  /** A loop between two media times (seconds); null clears it. */
+  setLoop(a: number | null, b?: number) {
+    this.send({ command: ["set_property", "ab-loop-a", a === null ? "no" : a] });
+    this.send({ command: ["set_property", "ab-loop-b", a === null || b === undefined ? "no" : b] });
+  }
+
   private applyAf() {
     const af = [this.eqChain, this.fxChain].filter(Boolean).join(",");
     this.send({ command: ["set_property", "af", af] });
