@@ -33,3 +33,12 @@ test("eqFilterChain combines EQ gains and the night compressor", () => {
   expect(out).toContain("equalizer=f=31");
   expect(out).toContain("acompressor=");
 });
+
+test("eqFilterChain adds headroom before big boosts (no clipping)", () => {
+  const gains = new Array(EQ_BANDS.length).fill(0);
+  gains[0] = 6;
+  const out = eqFilterChain(gains);
+  expect(out.startsWith("lavfi=[volume=-2.4dB,")).toBe(true);
+  gains[0] = 2; // small boosts: no change in level
+  expect(eqFilterChain(gains)).not.toContain("volume=");
+});

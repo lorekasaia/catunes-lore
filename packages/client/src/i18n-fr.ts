@@ -163,7 +163,11 @@ COMMANDES (interface) :
   "ui.filterLabel": "filtre",
   "eq.label": "Égaliseur",
   "eq.custom": "Personnalisé",
-  "eq.hint": "←→ bande · ↑↓ ±dB · 0 réinitialiser · p préréglage · Échap fermer",
+  "eq.hint": "←→ bande · ↑↓ ±dB · ↵ liste des préréglages · p/P préréglage suiv./préc. · 0 réinitialiser · Échap fermer",
+  "eq.presetsLabel": "Préréglages de l'égaliseur",
+  "eq.catGenre": "genre",
+  "eq.catPlace": "lieu",
+  "eq.catTone": "tonalité",
   "keys.setSkin": "Mascotte — pelage (tigré, noir, calico, siamois…) ou chien / lapin",
   "cover.note":
     "Teinte toute l'interface avec les couleurs de la pochette du morceau en cours (morceaux YouTube). Ton thème revient pour les morceaux sans pochette.",

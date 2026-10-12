@@ -73,6 +73,7 @@ import {
   mix,
 } from "./visuals.tsx";
 import { getCover, type Cover } from "../../cover.ts";
+import { EQ_PRESETS, findPreset, curve } from "../../eq-presets.ts";
 import {
   CAT_W,
   CAT_H,
@@ -111,22 +112,6 @@ const OFFLINE_PRESETS = [0, 1, 5, 10, 25, 50]; // tracks kept for offline play
 // Theme picker: extra actions listed after the theme names.
 const THEME_ACTIONS = 3; // new · import · share
 
-// 10-band equalizer presets (dB per band: 31Hz … 16kHz).
-const EQ_PRESETS: { name: string; gains: number[]; night?: boolean }[] = [
-  { name: "Flat", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-  { name: "Bass Boost", gains: [7, 6, 5, 3, 1, 0, 0, 0, 0, 0] },
-  { name: "Treble", gains: [0, 0, 0, 0, 0, 1, 3, 5, 6, 7] },
-  { name: "Vocal", gains: [-2, -1, 0, 2, 4, 4, 3, 1, 0, -1] },
-  { name: "Rock", gains: [5, 4, 2, 0, -1, -1, 1, 3, 4, 5] },
-  { name: "Jazz", gains: [3, 2, 1, 2, -1, -1, 0, 1, 2, 3] },
-  { name: "Classical", gains: [4, 3, 2, 0, 0, 0, -1, -1, 2, 3] },
-  { name: "Loudness", gains: [6, 4, 0, 0, -2, 0, 0, 2, 5, 6] },
-  // Home-theater style modes, like the ones on an AVR/soundbar remote.
-  { name: "Movie", gains: [5, 4, 1, -1, 0, 2, 3, 2, 1, 2] },
-  { name: "News", gains: [-5, -4, -2, 2, 6, 6, 4, 1, -2, -3] },
-  { name: "Stadium", gains: [6, 5, 3, 0, -3, -3, -1, 2, 5, 6] },
-  { name: "Night", gains: [-2, -1, 0, 1, 2, 2, 1, 0, -1, -2], night: true },
-];
 const EQ_LABELS = ["31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"];
 
 /** Command bus so `catunes pause/next/...` (another tab) can drive the UI. */
@@ -593,7 +578,8 @@ type Overlay =
   | { kind: "message"; title: string; text: string }
   | { kind: "sounds" }
   | { kind: "coverColors" }
-  | { kind: "skin" };
+  | { kind: "skin" }
+  | { kind: "eqPresets" };
 
 // Settings menu entries, in order: [i18n label key, what it opens].
 const SETTINGS_ITEMS: [string, string][] = [
@@ -1425,6 +1411,7 @@ function App({
       offline: OFFLINE_PRESETS.length,
       sounds: soundModelsReady() ? 3 : 2,
       coverColors: 2,
+      eqPresets: EQ_PRESETS.length,
       skin: SKINS.length,
       history: overlay.kind === "history" ? overlay.entries.length : 0,
       lang: SUPPORTED_LOCALES.length,
@@ -1463,16 +1450,15 @@ function App({
         return applyEq(next);
       }
       if (ch === "0") return applyEq(new Array(EQ_BANDS.length).fill(0));
-      if (ch === "p") {
-        // Cycle to the next preset by matching the current gains + night mode.
-        const i = EQ_PRESETS.findIndex(
-          (pr) =>
-            JSON.stringify(pr.gains) === JSON.stringify(eq) &&
-            !!pr.night === eqNight,
-        );
-        const next = EQ_PRESETS[(i + 1) % EQ_PRESETS.length]!;
+      if (ch === "p" || ch === "P") {
+        // Step through the presets (P = backwards) from the current one.
+        const cur = findPreset(eq, eqNight);
+        const i = cur ? EQ_PRESETS.indexOf(cur) : -1;
+        const n = EQ_PRESETS.length;
+        const next = EQ_PRESETS[(i + (ch === "p" ? 1 : n - 1) + n) % n]!;
         return applyEq(next.gains, !!next.night);
       }
+      if (key.return) return openOverlay({ kind: "eqPresets" });
       return;
     }
 
@@ -1584,6 +1570,10 @@ function App({
     if (o.kind === "crossfade") return Math.max(0, CROSSFADE_PRESETS.indexOf(crossfade));
     if (o.kind === "sounds") return soundsOn ? 1 : 0;
     if (o.kind === "coverColors") return coverColors ? 1 : 0;
+    if (o.kind === "eqPresets") {
+      const cur = findPreset(eq, eqNight);
+      return cur ? EQ_PRESETS.indexOf(cur) : 0;
+    }
     if (o.kind === "skin") return Math.max(0, SKINS.indexOf(skin));
     if (o.kind === "offline")
       return Math.max(0, OFFLINE_PRESETS.indexOf(loadSettings().offlineCache ?? 0));
@@ -1642,6 +1632,11 @@ function App({
       // The current track gets cached the next time it loads (from mpv's stream).
       toast(n > 0 ? t("offline.on", { n }) : t("offline.off"));
       return closeOverlay();
+    }
+    if (overlay.kind === "eqPresets") {
+      const pr = EQ_PRESETS[sel];
+      if (pr) applyEq(pr.gains, !!pr.night);
+      return openOverlay({ kind: "eq" });
     }
     if (overlay.kind === "skin") {
       const next = SKINS[sel] ?? "classic";
@@ -1786,13 +1781,24 @@ function App({
   }
 
   // --- render overlays ---
+  if (overlay.kind === "eqPresets") {
+    const catLabel = { genre: t("eq.catGenre"), place: t("eq.catPlace"), tone: t("eq.catTone") };
+    return (
+      <Modal title={t("eq.presetsLabel")} cols={cols} rows={rows} width={Math.min(cols - 4, 60)}>
+        <PickList
+          selected={sel}
+          maxVisible={Math.max(3, rows - 10)}
+          options={EQ_PRESETS.map(
+            (p) => `${curve(p.gains)}  ${p.name.padEnd(22)} ${p.night ? "🌙 " : ""}${p.name === "Flat" ? "" : catLabel[p.category]}`,
+          )}
+        />
+      </Modal>
+    );
+  }
   if (overlay.kind === "eq") {
     const H = 9; // slider rows; middle row = 0 dB
     const g = eq[eqBand] ?? 0;
-    const preset =
-      EQ_PRESETS.find(
-        (p) => JSON.stringify(p.gains) === JSON.stringify(eq) && !!p.night === eqNight,
-      )?.name ?? t("eq.custom");
+    const preset = findPreset(eq, eqNight)?.name ?? t("eq.custom");
     const knobRow = (b: number) =>
       Math.round(((12 - (eq[b] ?? 0)) / 24) * (H - 1));
     return (

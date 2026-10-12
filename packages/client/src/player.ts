@@ -29,6 +29,10 @@ export function eqFilterChain(gains: number[], night = false): string {
   const hasGains = gains.some((g) => Math.abs(g) > 0.01);
   if (!hasGains && !night) return "";
   const parts: string[] = [];
+  // Headroom: boosting bands can push peaks past 0 dBFS and distort, so pull
+  // the level down by part of the biggest boost first.
+  const boost = Math.max(0, ...gains);
+  if (boost > 2) parts.push(`volume=${(-(boost - 2) * 0.6).toFixed(1)}dB`);
   if (hasGains) {
     parts.push(
       ...EQ_BANDS.map(
