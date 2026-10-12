@@ -7,7 +7,7 @@
 // (Independent of the TUI: writing the title doesn't touch the screen
 //  contents, so it coexists with the UI without any issue.)
 
-import type { Player } from "./player.ts";
+import type { PlayerState } from "./player.ts";
 
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) s = 0;
@@ -30,7 +30,7 @@ export function clearTerminalTitle(): void {
  * Starts the periodic update of the title with the current track.
  * Returns the timer in case you want to stop it.
  */
-export function startTitleBroadcast(player: Player, intervalMs = 1000) {
+export function startTitleBroadcast(player: { state: PlayerState }, intervalMs = 1000) {
   const update = () => {
     const s = player.state;
     if (!s.url) {

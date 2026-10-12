@@ -6,7 +6,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { EventEmitter } from "node:events";
 import { spawn as spawnProcess } from "node:child_process";
 import { render, Box, Text, useApp, useInput, useStdout } from "ink";
-import type { Player, ResolvedTrack } from "../../player.ts";
+import type { ResolvedTrack } from "../../player.ts";
+import { TRANSITIONS, type DeckPlayer, type Transition } from "../../decks.ts";
+import { getBpm, saveBpm } from "../../bpm-cache.ts";
+
+// The UI drives a two-deck player that behaves like a single one.
+type Player = DeckPlayer;
 import { EQ_BANDS } from "../../player.ts";
 import {
   type Track,
@@ -109,6 +114,8 @@ const SLEEP_FADE_S = 30; // the volume fades out over the timer's last 30s
 const MAX_FAILED_SKIPS = 3; // consecutive unplayable tracks before we stop trying
 const CROSSFADE_PRESETS = [0, 2, 4, 6, 8, 10]; // seconds
 const OFFLINE_PRESETS = [0, 1, 5, 10, 25, 50]; // tracks kept for offline play
+const DJ_LENGTHS = [4, 8, 12, 16]; // seconds of DJ blend
+const DJ_PRELOAD_S = 20; // load the next track this long before the blend
 // Theme picker: extra actions listed after the theme names.
 const THEME_ACTIONS = 3; // new · import · share
 
@@ -579,7 +586,8 @@ type Overlay =
   | { kind: "sounds" }
   | { kind: "coverColors" }
   | { kind: "skin" }
-  | { kind: "eqPresets" };
+  | { kind: "eqPresets" }
+  | { kind: "dj" };
 
 // Settings menu entries, in order: [i18n label key, what it opens].
 const SETTINGS_ITEMS: [string, string][] = [
@@ -588,6 +596,7 @@ const SETTINGS_ITEMS: [string, string][] = [
   ["ui.optPlaylist", "playlists"],
   ["ui.optTheme", "theme"],
   ["ui.optCrossfade", "crossfade"],
+  ["ui.optDj", "dj"],
   ["ui.optOffline", "offline"],
   ["ui.optSounds", "sounds"],
   ["ui.optCoverColors", "coverColors"],
@@ -640,6 +649,7 @@ const HELP_ROWS: [string, string][] = [
   ["o", "keys.settings"],
   ["·", "keys.setTheme"],
   ["·", "keys.setCrossfade"],
+  ["·", "keys.setDj"],
   ["·", "keys.setOffline"],
   ["·", "keys.setSounds"],
   ["·", "keys.setCoverColors"],
@@ -695,6 +705,20 @@ function App({
   // "Up next": plays before the playlist continues, without touching the list.
   const [queue, setQueue] = useState<Track[]>([]);
   const [crossfade, setCrossfade] = useState<number>(loadSettings().crossfade ?? 0);
+  // DJ transitions (two decks): style, blend length, tempo matching.
+  const [dj, setDj] = useState<{ style: Transition; seconds: number; tempo: boolean }>(() => {
+    const s = loadSettings();
+    const style = (TRANSITIONS as readonly string[]).includes(s.djStyle ?? "") ? (s.djStyle as Transition) : "off";
+    return { style, seconds: s.djSeconds ?? 8, tempo: s.djTempo ?? true };
+  });
+  const djRef = useRef(dj);
+  djRef.current = dj;
+  // The next track, chosen once ahead of time (so the prepared deck and the
+  // track that actually plays next are the same, even with shuffle).
+  const upcomingRef = useRef<{ url: string; index: number; fromQueue: boolean } | null>(null);
+  const mixNextRef = useRef(false); // the next startTrack() blends in instead of cutting
+  const djStateRef = useRef<{ prepared: boolean; mixed: boolean }>({ prepared: false, mixed: false });
+  const bpmSeen = useRef<{ url: string | null; bpm: number | null; count: number }>({ url: null, bpm: null, count: 0 });
   // Sound detection ("what's in this song"): tags + tempo for the playing track.
   const [soundsOn, setSoundsOn] = useState<boolean>(loadSettings().soundDetect ?? false);
   const [soundTags, setSoundTags] = useState<SoundTag[]>([]);
@@ -778,8 +802,26 @@ function App({
     const local = cachedFile(url);
     pendingAnalyzeRef.current = null;
     taggerRef.current?.reset(); // tags/tempo belong to the previous track
+    const outgoing = player.state.url;
+    djStateRef.current = { prepared: false, mixed: false };
+    upcomingRef.current = null;
     try {
-      player.load(url, local ? { source: local, title } : {});
+      const opts = local ? { source: local, title } : {};
+      if (mixNextRef.current && outgoing) {
+        const d = djRef.current;
+        void player.mixTo(url, opts, {
+          style: d.style,
+          seconds: d.seconds,
+          volume: mutedRef.current !== null ? 0 : userVolRef.current,
+          bpmOut: bpm ?? getBpm(outgoing),
+          bpmIn: getBpm(url),
+          matchTempo: d.tempo,
+        });
+        toast(t("dj.mixing", { style: t(`dj.style.${d.style}`) }), 3000);
+      } else {
+        player.load(url, opts);
+      }
+      mixNextRef.current = false;
       if (local || !/^https?:\/\//i.test(url)) {
         analyzer.startDirect(local ?? url, fromSec, () => player.state.position);
       } else {
@@ -822,7 +864,30 @@ function App({
     if (nx >= n) return auto && repeat === "off" ? null : 0;
     return nx;
   };
+  /** Decides (once) what plays next: the queue's head, else the playlist's pick. */
+  const peekNext = () => {
+    if (upcomingRef.current) return upcomingRef.current;
+    const q = queue[0];
+    if (q) upcomingRef.current = { url: q.url, index: tracks.findIndex((tr) => tr.url === q.url), fromQueue: true };
+    else {
+      const i = pickNext(true);
+      if (i !== null && tracks[i]) upcomingRef.current = { url: tracks[i]!.url, index: i, fromQueue: false };
+    }
+    return upcomingRef.current;
+  };
   const advance = (auto: boolean) => {
+    // Already decided (and maybe preloaded on the other deck)? Play exactly that.
+    const up = upcomingRef.current;
+    if (up && (!up.fromQueue || queue[0]?.url === up.url)) {
+      upcomingRef.current = null;
+      if (up.fromQueue) {
+        const q = queue[0]!;
+        setQueue(queue.slice(1));
+        return playUrl(q.url, q.resolved ? q.title : undefined);
+      }
+      if (up.index >= 0 && tracks[up.index]?.url === up.url) return play(up.index);
+    }
+    upcomingRef.current = null;
     // The queue always goes first, then the playlist resumes where it was.
     const [next, ...rest] = queue;
     if (next) {
@@ -1005,7 +1070,16 @@ function App({
     }
     const onPcm = (f: Buffer) => tagger.push(f);
     const onTags = (tags: SoundTag[]) => setSoundTags(tags);
-    const onBpm = (b: number | null) => setBpm(b);
+    const onBpm = (b: number | null) => {
+      setBpm(b);
+      // Remember a steady tempo for this track (DJ tempo matching later).
+      const seen = bpmSeen.current;
+      const url = player.state.url;
+      if (!b || !url) return;
+      if (seen.url === url && seen.bpm === b) seen.count++;
+      else bpmSeen.current = { url, bpm: b, count: 1 };
+      if (bpmSeen.current.count === 4) saveBpm(url, b);
+    };
     const onError = () => toast(t("sounds.modelFailed"), 6000);
     analyzer.on("pcm", onPcm);
     tagger.on("tags", onTags);
@@ -1069,7 +1143,10 @@ function App({
   const applyFades = () => {
     const s = player.state;
     let gain = 1;
-    const cf = crossfadeRef.current;
+    // Two-deck DJ transitions replace the simple fade (and own the volume
+    // while blending).
+    if (player.mixing) return;
+    const cf = djRef.current.style === "off" ? crossfadeRef.current : 0;
     // Only once the file actually opened: a track that never loads must not
     // leave the volume stuck at 0.
     if (cf > 0 && s.url && !s.paused && (s.duration > 0 || s.position > 0)) {
@@ -1103,6 +1180,37 @@ function App({
   const applyFadesRef = useRef(applyFades);
   applyFadesRef.current = applyFades;
 
+  /** DJ transitions: preload the next track, then blend into it near the end. */
+  const djTick = () => {
+    const d = djRef.current;
+    const s = player.state;
+    if (d.style === "off" || !s.url || s.paused || player.mixing) return;
+    if (repeat === "one" || sleepRef.current.endOfTrack) return;
+    // Lead time: how early the transition starts before the end of the track.
+    const lead = d.style === "cut" ? 0.6 : d.style === "brake" ? 1.8 : d.seconds;
+    if (s.duration < lead * 2 + 10 || s.position < 3) return; // radio / very short
+    const left = s.duration - s.position;
+    const st = djStateRef.current;
+    if (!st.prepared && left <= lead + DJ_PRELOAD_S) {
+      st.prepared = true;
+      const up = peekNext();
+      if (up) {
+        const local = cachedFile(up.url);
+        const tr = tracks[up.index];
+        const title = tr?.resolved ? tr.title : undefined;
+        void player.prepare(up.url, local ? { source: local, title } : {});
+      }
+    }
+    if (!st.mixed && left <= lead) {
+      st.mixed = true;
+      if (!peekNext()) return; // end of the list (repeat off)
+      mixNextRef.current = true;
+      advance(true);
+    }
+  };
+  const djTickRef = useRef(djTick);
+  djTickRef.current = djTick;
+
   // Single render tick: pushes analyzer data to state + animates plasma.
   useEffect(() => {
     const id = setInterval(() => {
@@ -1120,6 +1228,7 @@ function App({
         pk[i] = Math.max(sm[i]!, pk[i]! - 0.12);
       }
       applyFadesRef.current();
+      djTickRef.current();
       const snap = sm.slice();
       historyRef.current.push(snap);
       if (historyRef.current.length > SPECTRUM_H * 2) historyRef.current.shift();
@@ -1411,6 +1520,7 @@ function App({
       offline: OFFLINE_PRESETS.length,
       sounds: soundModelsReady() ? 3 : 2,
       coverColors: 2,
+      dj: TRANSITIONS.length + 2,
       eqPresets: EQ_PRESETS.length,
       skin: SKINS.length,
       history: overlay.kind === "history" ? overlay.entries.length : 0,
@@ -1570,6 +1680,7 @@ function App({
     if (o.kind === "crossfade") return Math.max(0, CROSSFADE_PRESETS.indexOf(crossfade));
     if (o.kind === "sounds") return soundsOn ? 1 : 0;
     if (o.kind === "coverColors") return coverColors ? 1 : 0;
+    if (o.kind === "dj") return Math.max(0, TRANSITIONS.indexOf(dj.style));
     if (o.kind === "eqPresets") {
       const cur = findPreset(eq, eqNight);
       return cur ? EQ_PRESETS.indexOf(cur) : 0;
@@ -1632,6 +1743,23 @@ function App({
       // The current track gets cached the next time it loads (from mpv's stream).
       toast(n > 0 ? t("offline.on", { n }) : t("offline.off"));
       return closeOverlay();
+    }
+    if (overlay.kind === "dj") {
+      const save = (next: typeof dj) => {
+        setDj(next);
+        saveSettings({ djStyle: next.style, djSeconds: next.seconds, djTempo: next.tempo });
+      };
+      if (sel < TRANSITIONS.length) {
+        save({ ...dj, style: TRANSITIONS[sel]! });
+        toast(t("dj.set", { style: t(`dj.style.${TRANSITIONS[sel]!}`) }));
+        return closeOverlay();
+      }
+      if (sel === TRANSITIONS.length) {
+        // Cycle the blend length; the list stays open.
+        const i = DJ_LENGTHS.indexOf(dj.seconds);
+        return save({ ...dj, seconds: DJ_LENGTHS[(i + 1) % DJ_LENGTHS.length]! });
+      }
+      return save({ ...dj, tempo: !dj.tempo });
     }
     if (overlay.kind === "eqPresets") {
       const pr = EQ_PRESETS[sel];
@@ -1781,6 +1909,26 @@ function App({
   }
 
   // --- render overlays ---
+  if (overlay.kind === "dj") {
+    return (
+      <Modal title={t("ui.optDj")} cols={cols} rows={rows} width={Math.min(cols - 4, 72)}>
+        <Text dimColor>{t("dj.note")}</Text>
+        <Box marginTop={1}>
+          <PickList
+            selected={sel}
+            maxVisible={Math.max(3, rows - 14)}
+            options={[
+              ...TRANSITIONS.map(
+                (k) => `${t(`dj.style.${k}`).padEnd(14)} ${k === "off" ? "" : t(`dj.desc.${k}`)}${k === dj.style ? "  ✓" : ""}`,
+              ),
+              t("dj.length", { n: dj.seconds }),
+              t("dj.tempo", { v: dj.tempo ? t("dj.yes") : t("dj.no") }),
+            ]}
+          />
+        </Box>
+      </Modal>
+    );
+  }
   if (overlay.kind === "eqPresets") {
     const catLabel = { genre: t("eq.catGenre"), place: t("eq.catPlace"), tone: t("eq.catTone") };
     return (

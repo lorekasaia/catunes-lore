@@ -107,6 +107,10 @@ export class Player extends EventEmitter {
   private reqId = 1;
   private buffer = "";
   private pending = new Map<number, (data: unknown) => void>();
+  // The audio-filter chain has two independent parts: the user's equalizer
+  // and a DJ-effect slot (filters/echo during transitions). See applyAf().
+  private eqChain = "";
+  private fxChain = "";
 
   state: PlayerState = {
     url: null,
@@ -120,14 +124,17 @@ export class Player extends EventEmitter {
   constructor(
     private mpvBin = "mpv",
     initialVolume = 100,
+    name = "", // distinguishes the two DJ decks' control sockets
   ) {
     super();
     this.state.volume = Math.max(0, Math.min(100, initialVolume));
     // Control socket: named pipe on Windows, unix socket everywhere else.
+    // (Always contains "catunes-mpv": `catunes off` finds strays by it.)
+    const suffix = name ? `-${name}` : "";
     this.socketPath =
       process.platform === "win32"
-        ? "\\\\.\\pipe\\catunes-mpv"
-        : join(tmpdir(), `catunes-mpv-${process.pid}.sock`);
+        ? `\\\\.\\pipe\\catunes-mpv${suffix}`
+        : join(tmpdir(), `catunes-mpv-${process.pid}${suffix}.sock`);
   }
 
   /** Starts the mpv process and opens the control channel. */
@@ -297,6 +304,42 @@ export class Player extends EventEmitter {
     this.emit("state", this.state);
   }
 
+  /** Like load(), but stays paused (and silent): a DJ deck getting ready. */
+  loadPaused(url: string, opts: { source?: string; title?: string } = {}) {
+    this.state.url = url;
+    this.state.title = opts.title ?? url;
+    this.setVolume(0);
+    this.setPause(true); // pause persists across loadfile
+    this.send({ command: ["set_property", "force-media-title", opts.title ?? ""] });
+    this.send({ command: ["loadfile", opts.source ?? url, "replace"] });
+  }
+
+  /** Playback speed; pitchCorrection=false lets the pitch drop (vinyl brake). */
+  setSpeed(speed: number, pitchCorrection = true) {
+    this.send({ command: ["set_property", "audio-pitch-correction", pitchCorrection] });
+    this.send({ command: ["set_property", "speed", Math.max(0.01, speed)] });
+  }
+
+  /**
+   * DJ-effect filter graph (lavfi syntax, e.g. "highpass@hp=f=20"), or null to
+   * clear it. Name filters "type@name" to tweak them live with fxCommand().
+   */
+  setFx(graph: string | null) {
+    this.fxChain = graph ? `@djfx:lavfi=[${graph}]` : "";
+    this.applyAf();
+  }
+
+  /** Changes a running effect without re-initialising it (no clicks). */
+  fxCommand(target: string, command: string, value: string | number) {
+    if (!this.fxChain) return;
+    this.send({ command: ["af-command", "djfx", command, String(value), target] });
+  }
+
+  private applyAf() {
+    const af = [this.eqChain, this.fxChain].filter(Boolean).join(",");
+    this.send({ command: ["set_property", "af", af] });
+  }
+
   togglePause() {
     this.setPause(!this.state.paused);
   }
@@ -327,7 +370,9 @@ export class Player extends EventEmitter {
    * night mode clears the filter so there's no extra processing.
    */
   setEqualizer(gains: number[], night = false) {
-    this.send({ command: ["set_property", "af", eqFilterChain(gains, night)] });
+    const chain = eqFilterChain(gains, night);
+    this.eqChain = chain ? `@djeq:${chain}` : "";
+    this.applyAf();
   }
 
   stop() {

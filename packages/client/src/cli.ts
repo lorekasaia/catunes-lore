@@ -9,6 +9,7 @@
 import { execFile } from "node:child_process";
 import { checkMpv, checkYtDlp, installHint } from "./deps.ts";
 import { Player } from "./player.ts";
+import { DeckPlayer } from "./decks.ts";
 import { loadPlaylist, addUrl, pruneTitleCache } from "./playlist.ts";
 import { PLAYLISTS_DIR, loadSettings, saveSettings } from "./config.ts";
 import { runInkUI, controlBus } from "./ui/ink/app.tsx";
@@ -115,7 +116,8 @@ async function launchUI() {
 
   await ensureYtDlpForTracks(tracks);
 
-  const player = new Player(mpv.path ?? "mpv", loadSettings().volume ?? 100);
+  // Two decks (the second starts only when a DJ transition first needs it).
+  const player = new DeckPlayer(mpv.path ?? "mpv", loadSettings().volume ?? 100);
   await player.start();
 
   // "Now playing" visible in any terminal (title) and in tmux/zellij bars (file).

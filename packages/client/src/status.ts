@@ -8,7 +8,7 @@
 
 import { writeFileSync, readFileSync, existsSync, statSync } from "node:fs";
 import { STATUS_FILE, ensureConfig } from "./config.ts";
-import type { Player } from "./player.ts";
+import type { PlayerState } from "./player.ts";
 
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) s = 0;
@@ -18,7 +18,7 @@ function fmtTime(s: number): string {
 }
 
 /** Starts the periodic writing of the state to disk. */
-export function startStatusBroadcast(player: Player, intervalMs = 1000) {
+export function startStatusBroadcast(player: { state: PlayerState }, intervalMs = 1000) {
   ensureConfig();
   const write = () => {
     const s = player.state;

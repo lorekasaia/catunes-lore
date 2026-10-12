@@ -83,6 +83,21 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `c` | Right panel: the **cat** (default) → the track's **cover art** (coloured half-blocks) → **both** side by side (wide windows). |
 | `b` | **Mini player** — 3 lines, for small panes (also automatic when the terminal is short). |
 
+### DJ mix 🎧
+
+**Settings → DJ mix** blends each track into the next like a DJ, with two
+players (decks): the next track loads ahead of time on the second deck and
+comes in during the last seconds. Styles: **crossfade** (both play, equal-power
+fade), **filter** (bass swap: the old track loses its lows as the new one gets
+them), **echo out**, **brake** (the old track stops like a braking turntable),
+**cut**, or **random**. Blend length 4–16 s. **Tempo matching**: when both
+tracks' BPMs are known (learned while Sound detection is on), the incoming
+track is sped up/slowed down (±8%, pitch kept) to match, then eases back.
+
+The **equalizer** (`e`) has 48 presets — Winamp's classics plus genre and
+device curves; Enter opens the list with a preview of each curve, `p`/`P`
+step through them.
+
 ### The cat ᓚᘏᗢ
 
 The mascot reacts to everything. With **sound detection** on it dresses for

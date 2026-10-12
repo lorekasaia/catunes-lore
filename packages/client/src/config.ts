@@ -135,6 +135,9 @@ export interface Settings {
   artPanel?: "cat" | "cover" | "both"; // right-hand panel: the cat, the track's cover, or both side by side
   coverColors?: boolean; // tint the UI with the playing track's cover colours
   miniMode?: boolean; // 3-line mini player
+  djStyle?: string; // DJ transition: off, crossfade, filter, echo, brake, cut, random
+  djSeconds?: number; // DJ blend length
+  djTempo?: boolean; // match the incoming track's tempo when both BPMs are known
   catSkin?: string; // the mascot's look: classic, tabby, black, calico, siamese, gradient, dog, bunny
   // Resume: last track + position within the last playlist.
   lastPlaylist?: string;

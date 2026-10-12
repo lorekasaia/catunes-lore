@@ -83,6 +83,21 @@ catunes theme import "catunes-theme:Dracula:bd93f9,50fa7b,ff79c6,8be9fd"
 | `c` | Panel derecho: el **gato** (por defecto) → la **portada** de la canción (medios bloques de colores) → **los dos** juntos (ventanas anchas). |
 | `b` | **Mini reproductor** — 3 líneas, para paneles pequeños (también automático si la terminal es baja). |
 
+### Mezcla DJ 🎧
+
+**Ajustes → Mezcla DJ** une cada canción con la siguiente como un DJ, con dos
+reproductores (platos): la siguiente se carga antes en el segundo plato y entra
+en los últimos segundos. Estilos: **crossfade** (suenan las dos, fundido de
+igual potencia), **filtro** (cambio de graves: la vieja los pierde mientras la
+nueva los recibe), **eco**, **freno** (la vieja se detiene como un vinilo),
+**corte** o **aleatorio**. Duración de 4 a 16 s. **Igualar tempo**: cuando se
+conocen los BPM de las dos (se aprenden con Detectar sonidos activado), la que
+entra se acelera o frena (±8 %, sin cambiar el tono) y luego vuelve a su ritmo.
+
+El **ecualizador** (`e`) tiene 48 presets — los clásicos de Winamp más curvas
+por género y por dispositivo; Enter abre la lista con la curva de cada uno,
+`p`/`P` los recorren.
+
 ### El gato ᓚᘏᗢ
 
 La mascota reacciona a todo. Con **Detectar sonidos** activado se viste según
