@@ -102,7 +102,7 @@ a **cue** (`c`/`v`), **loop** 1–8 beats (`g`/`G`), sound an **air horn** (`h`)
 or let it **blend automatically** (`a`). Leaving (`j`/Esc) keeps playing the
 deck the crossfader points to.
 
-The **equalizer** (`e`) has 48 presets — Winamp's classics plus genre and
+The **equalizer** (`e`) has 49 presets — Winamp's classics plus genre and
 device curves; Enter opens the list with a preview of each curve, `p`/`P`
 step through them.
 

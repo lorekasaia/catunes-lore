@@ -103,7 +103,7 @@ medios o agudos (`1` `2` `3`), gira la perilla de filtro (`[` `]`: paso bajo ←
 deja que **mezcle solo** (`a`). Al salir (`j`/Esc) sigue sonando el plato hacia
 el que apunta el crossfader.
 
-El **ecualizador** (`e`) tiene 48 presets — los clásicos de Winamp más curvas
+El **ecualizador** (`e`) tiene 49 presets — los clásicos de Winamp más curvas
 por género y por dispositivo; Enter abre la lista con la curva de cada uno,
 `p`/`P` los recorren.
 

@@ -98,6 +98,8 @@ const OWN: EqPreset[] = [
   { name: "Phone speaker", category: "place", gains: [-6, -4, 0, 3, 4, 4, 3, 2, 0, -2] },
   { name: "Car", category: "place", gains: [4, 3, 1, 0, -1, 0, 1, 2, 3, 3] },
   { name: "Headphones (V)", category: "place", gains: [4, 3, 1, 0, -1, -1, 0, 2, 3, 4] },
+  // gentle "audiophile" smile: tight low end, open air, mids untouched
+  { name: "Hi-Fi", category: "tone", gains: [3, 2, 1, 0, 0, 0, 0, 1, 2, 3] },
 ];
 
 const ORDER: EqCategory[] = ["genre", "place", "tone"];
